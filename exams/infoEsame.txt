@@ -1,0 +1,6 @@
+Informazioni per esame di Analisi Predittiva 
+
+L'esame dura di norma 90 minuti. L'esame è composto da una parte scritta e una parte in Rmd, come i vecchi appelli disponibili su Moodle. 
+L'esame si svolge in laboratorio informatico: durante l'esame è possibile usare solo i computer del laboratorio (che non saranno collegati ad internet tranne che per la pagina Moodle del corso). L'esame è closed book e non è permesso usare materiale esterno. 
+Sarà possibile utilizzare uno script di comandi disponibile su moodle, che permette di avere un elenco ragionato delle funzioni che vengono tipicamente usate quando si lavora con modelli lineari (generalizzati). Ho caricato il file che sarà reso disponibile il giorno dell'esame. 
+

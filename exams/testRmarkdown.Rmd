@@ -1,0 +1,19 @@
+---
+title: "Verifica installazione pacchetti"
+output: 
+  html_document: 
+---
+
+Provate a compilare questo documento o premendo il tasto knit in Rstudio o usando `rmarkdown::render("testRmarkdown.Rmd")` (quando siete nella cartella dove si trova il file). 
+
+```{r}
+if(!require(car)) install.packages("car")
+if(!require(rmarkdown)) install.packages("rmarkdown")
+```
+
+Controllate la cartella dove è il file: 
+
+```{r}
+getwd()
+```
+
