@@ -1,0 +1,464 @@
+---
+title: "Lab 08 - GLMs in R: an introduction"
+author: "Ilaria Prosdocimi"
+output: 
+  html_document: 
+    toc: yes
+---
+
+# Modelli per dati dicotomici (Bernoulli)
+
+Prendiamo in esame un dataset contenente informazioni derivate dalla U.S. Youth Risk Behavior Surveillance System, un'indagine campionaria che mira a monitorare i comportamenti di rischio dei giovani negli Stati Uniti. Una delle domande chiede cosa sta facendo la persona intervistata riguardo il suo peso e una delle opzioni possibili è la risposta "Sto cercando di perdere peso". Teniamo traccia di questa risposta, insieme ad alcune altra caratteristiche della persona intervistata, tra cui il sesso e il percentile di BMI a ui appartiene la persona. Il dataset è quindi composto da tre variabili: 
+
+* `lose.wt`: whether the individual has answered "A. Loose Weight" or other options to the question "Q66. Which of the following are you trying to do about your weight?" 
+* `bmipct`: the percentile (sex-specific) for the BMI of the individual 
+* `female`: whether the individual is female 
+
+Diamo un'occhiata: 
+
+```{r}
+wtldata <- read.csv("../data/weightLoss.csv", header = TRUE)
+head(wtldata)
+plot(wtldata)
+mean(wtldata$lose.wt == "A")
+# what a difference!
+tapply(wtldata$lose.wt == "A", wtldata$female, mean)
+tapply(wtldata$lose.wt, wtldata$female, length)
+```
+
+
+```{r}
+plot(jitter(ifelse(lose.wt == "A",1,0), 0.1) ~ bmipct, data = wtldata, pch = 16)
+```
+
+
+Sembra esserci un po' di effetto. Per stimare come varia la probabilità che una persona indichi l'interesse a perdere peso possiamo usare un glm: come specificare un glm in R? Abbiamo bisogno dei seguenti elementi 
+
+* la distribuzione che si assume per la variabile risposta $Y$ (in questo caso una binomiale, in particolare un Bernoulli, cioè una binomiale in cui vi è un solo "tentativo"): $Y \sim Bin(1, p(x))$, con $\mu(x) = E[Y|X=x] = p(x)$
+* la funzione legame tra $\mu(x)$ e il predittore lineare $\eta(x)$: usiamo in questo caso il legame canonico, cioè la trasformazione logistica: $logit(\mu(x)) = \beta_1 + \beta_1 x$
+* la specificazione delle variabili esplicative da inserire nel modello: in questo modello usiamo solo `bmipct` 
+
+La funzione che possiamo usare in R è la funzione `glm` dove è possibile specificare la distribuzione che si assume per la variabile risposta usando l'argomento `family`: 
+
+```{r,eval=FALSE}
+fit_wtl_bmi <- glm(lose.wt ~ bmipct, data = wtldata, 
+                   family = binomial)
+## this doesn't work 
+```
+
+Guardando le indicazioni in `?binomial` (che rimanda a `?family`) vediamo che non possiamo fornire una stringa come variabile risposta, ma dobbiamo usare: 
+
+* un fattore 
+* un valore numerico tra 0 e 1 (usando eventualmente anche l'opzione `weights`)
+* una matrice di due colonne 
+
+
+```{r}
+wtldata$flose.wt <- as.factor(wtldata$lose.wt)
+levels(wtldata$flose.wt) ## first level is "A", that's not what we wanted 
+wtldata$flose.wt <- factor(wtldata$lose.wt, levels = c("B/C/D", "A"))
+levels(wtldata$flose.wt) ## first level is "A", that's not what we wanted 
+```
+
+```{r}
+fit_wtl_bmi <- glm(flose.wt ~ bmipct, data = wtldata, 
+                   family = binomial)
+summary(fit_wtl_bmi)
+```
+
+```{r}
+## alternative 
+wtldata$lose.wt.01 <- as.numeric(wtldata$lose.wt == "A")
+summary(glm(lose.wt.01 ~ bmipct, data = wtldata, 
+            family = binomial, weights = rep(1, nrow(wtldata))))
+```
+
+
+
+Cerchiamo adesso di capire un po' meglio la stima ottenuta del modello  
+
+Come possiamo interpretare i coefficienti? [Video che spiega come non sia banale la cosa!](https://twitter.com/ChelseaParlett/status/1304436259926896640).  
+
+
+
+
+Possiamo ora indagare se ci sono differenze nell'intenzione di perdere peso tra i due sessi: in particolare vogliamo vedere se _al netto dell'effetto del bmi_ vi è una differenza tra uomini e donne. 
+
+Iniziamo col dare un'occhiata ai dati
+
+```{r}
+plot(jitter(lose.wt.01,0.1) ~ bmipct, data = wtldata, 
+            col = 1+wtldata$female,
+            pch = 16)
+```
+
+Sembrano esserci molti punti rossi (`female` = 1) con valore =1 anche se il valore di bmipct è piuttosto basso.  
+
+Aggiungiamo `female` (eventualmente come `factor`) al modello già stimato: 
+
+```{r}
+fit_wtl_bmifem <- glm(flose.wt ~ bmipct+female, 
+                      family = binomial, data = wtldata)
+summary(fit_wtl_bmifem)
+```
+
+
+
+
+C'è un'interazione tra i due gruppi? Cioè l'effetto di `bmipct` è lo stesso? 
+
+```{r}
+fit_wtl_bmifemInt <- glm(flose.wt ~ bmipct*female, 
+                      family = binomial, data = wtldata)
+summary(fit_wtl_bmifemInt)
+```
+
+
+
+# Un modello per dati di conteggio (Poisson)
+
+Il dataset `roaches` contiene informazioni sul numero di scarafaggi catturati (Cockroach) in alcuni appartamenti. Lo studio mira a verificare l'efficacia di un trattamento contro gli scarafaggi. Le variabili prese in considerazione sono: 
+
+* y: Number of roaches caught
+* roach1: Pretreatment number of roaches
+* treatment: Treatment indicator
+* senior: Indicator for only elderly residents in building
+
+La variabile di interesse è $y$, il numero di scarafaggi trovati. 
+
+```{r}
+roaches <- read.table("../data/roaches.csv", header = TRUE)
+plot(roaches)
+```
+
+In prima istanza guardiamo se il numero di scarafaggi catturati nelle trappole è legato in qualche modo al numero di scarafaggi rilevato prima del trattamento: 
+
+```{r}
+roach_fit1 <- glm(y~roach1, data = roaches, family = poisson)
+summary(roach_fit1)
+```
+
+Da dove arriva la stima che facciamo? Abbiamo detto che è una stima di massima verosimiglianza, sarà vero? 
+
+```{r}
+# write the likelihood for the Poisson 
+poislikglm <- function(bs, y, x){
+}
+# optim
+```
+
+In generale però nei GLM possiamo sfruttare alcune caratteristiche della verosimiglianza nelle famiglie esponenziali e la stima viene fatta tramite un algoritmo noto come Fisher scoring, che equivale a fare ripetutamente una stima basata su una minimizzazione dei quadrati pesati. Vediamo come funziona. Dovremo risolvere in maniera iterativa l'equazione: 
+$$\boldsymbol{X}^\top \boldsymbol{V}(\hat{\beta}^{(t)}) \boldsymbol{X} \boldsymbol{\beta}^{(t)} = \boldsymbol{X}^\top \boldsymbol{V}(\hat{\beta}^{(t)}) \boldsymbol{z}$$
+dove $\boldsymbol{V} = diag(v_{ii})$ e $\boldsymbol{z} = (z_1, \ldots, z_n)$ dipendono da $\beta^{(t)}$, e sono definiti come: 
+$$v_{ii} = V_i(\boldsymbol{\beta}^{(t)})  = \left(\frac{\partial \mu_i}{\partial \eta_i}\right)^2 \frac{1}{\phi V_i}$$ 
+$$z^{(t)}_i = \left. \boldsymbol{X}\boldsymbol{\beta}^{(t)} + (y_i - \mu_i^{(t)}) \frac{\partial \eta_i}{\partial \mu_i}\right\rvert_{\boldsymbol{\beta}^{(t)}} \ .$$
+
+Per il caso della Poisson con legame canonico: 
+
+* $\phi = 1$
+* $\mu_i = \exp\left\{\beta_0 + \beta_1 x\right\} = \exp\left\{\eta_i\right\}$ quindi $\frac{\partial \mu_i}{\partial \eta_i} = \exp{\eta_i}$
+* $\eta_i = \log(\mu_i)$ quindi $\frac{\partial \eta_i}{\partial \mu_i} = 1/\mu_i$
+* $V_i = Var(Y_i) = \mu_i = \exp\left\{\beta_0 + \beta_1 x_i\right\}$
+
+```{r}
+X <- cbind(rep(1, nrow(roaches)), roaches$roach1); y <- roaches$y
+# initialize 
+beta_t <- c(log(mean(roaches$y)), 0)
+## run this many time... (or write in a better way)
+beta_tm1 <- beta_t # update the beta vector to the latest estimate
+eta <- as.vector(X %*% beta_t); mu <- exp(eta) # update linear predictor and expected value estimation 
+V <- diag(mu); z <- eta + (y-mu)*(1/mu) # update V and working variable 
+(beta_t <- solve(t(X) %*% V %*% X) %*%t(X) %*%V %*% z) # update beta 
+# how much is the estimation changing from previous step? 
+beta_tm1 - beta_t
+```
+
+
+
+Andiamo adesso a capire più in dettaglio che modello abbiamo stimato. 
+
+Si assume che 
+
+\[Y_i = (Y|X = x_i) \sim Pois(\lambda(roach1_i)) \]
+dove 
+\[\lambda(roach1_i) = \exp\{\beta_0 + \beta_1 roach1_i \} \]
+con il predittore lineare $\eta_i = \eta(roach1_i) = \log(\lambda(roach1_i))$:
+\[\eta(roach1_i) = \beta_0 + \beta_1 roach1_i\]
+Dato che $Y_i$ segue una Poisson si ha che $E[Y_i] (= Var(Y_i)) = \lambda_i$. Quindi `roach1` ha un effetto sul valore atteso della distribuzione tramite la funzione legame. Due appartamenti che abbiano una differenza di $c$ scarafaggi al conteggio iniziale avranno un valore predetto di: 
+
+\[\lambda(x_0) = \exp\{\beta_0 + \beta_1 x_0 \} \quad \lambda(x_0 + c) = \exp\{\beta_0 + \beta_1 (x_0 + c) \}\]
+
+e si ha che $\lambda(x_0 + c)  = \lambda(x_0) \exp\{c\}$: l'effetto della differenza di $c$ unità nella variabile esplicativa ha un effetto moltiplicativo sul valore atteso. 
+
+Possiamo verificare la cosa usando la funzione `predict`: 
+
+
+## La devianza 
+
+Nel `summary` R stampa l'informazione su devianza nulla e devianza residua, che una misura della bontà di adattamento di un modello ai dati, in qualche modo simile alla somma dei quadrati dei residui del modello (e anche la devianza qualcosa che si cerca di minimizzare): 
+
+```{r}
+roach_fit1$deviance
+glm(y ~.,family = poisson, data = roaches)$deviance
+```
+
+Modelli più complessi tendono a far diminuire la devianza. La devianza nulla è la devianza per un modello in cui non vengono usati predittori: 
+
+```{r}
+roach_fit1$null.deviance
+glm(y ~1,family = poisson, data = roaches)$null.deviance
+```
+
+Da dove arrivano questi numeri? La devianza è definita con: 
+
+\[D = 2 \sum_{i=1}^{n} d_i =  \sum_{i=1}^{n}(l^{sat} -  l(\hat{\beta}))  \]
+
+dove $l^{sat}$ è il massimo valore possibile per la log-verosimiglianza che si ottiene con $\mu^{sat} = y_i$. 
+
+La log-verosimiglianza per il modello di Poisson è: 
+
+\[l(\mu_i, y_i) =  y_i \log \mu_i  - \mu_i \]
+
+quindi $l^{sat} = y_i \log y_i - y_i$. Ne risulta che la devianza ha la seguente forma: 
+
+\[D = \sum_{i=1}^{n}\left( (y_i \log y_i - y_i) - (y_i \log \hat{\mu}_i  - \hat{\mu}_i)  \right)  \]
+con $\hat{\mu}_i = \exp\{ \beta_0 + \beta_1 x_{i,1} + \ldots + \beta_{p-1} x_{i, p-1} \}$
+
+Per il modello `roach_fit1`, in cui solo `roach1` è inserito come predittore, deriviamo: 
+
+```{r}
+2 * sum((roaches$y * log(pmax(roaches$y,1)) - roaches$y) - 
+       (roaches$y* log(roach_fit1$fitted.values) - roach_fit1$fitted.values))
+## notice the convention that when y=0, y*log(y) = 0
+roach_fit1$deviance
+```
+
+Per calcolare la devianza nulla invece pensiamo che la stima per ogni punto del campione si derivi usando $\hat{\mu} = \bar{y}$:  
+
+```{r}
+2 * sum( (roaches$y * log(pmax(roaches$y,1)) - roaches$y) - 
+       (roaches$y* log(mean(roaches$y)) - roaches$y))
+roach_fit1_null <- glm(y ~ 1, data = roaches, family = poisson)
+roach_fit1$null.deviance
+roach_fit1_null$deviance
+```
+
+Sotto certe assunzioni generali (che tipicamente sono valide per i GLM non patologici), si ha che:
+
+\[D \sim \chi^2_{n-p} \]
+
+Usiamo questo fatto per creare un test sulla significatività del modello (un test quindi simile al test F): vale la pena includere dei predittori o usare un modello più semplice porta comunque ad una devianza non poi così diversa? R permette di fare questo test con la funzione `anova`:
+
+
+# La modellazione del numero di successi (proporzioni - Binomiale)  
+
+La distribuzione binomiale che viene usata quando si specifica  `family = binomial` può essere usata non solo per dati binari ma anche per dati in cui il dato discreto che si modella è il numero di successi ($y$) su un totale di $k$ tentativi, assumendo che $Y|X=x \sim Bin(k, p(x))$. Come specificato in ?family possiamo specificare il modello per questo tipo di dati in due modi: 
+
+* As a numerical vector with values between 0 and 1, interpreted as the proportion of successful cases (with the total number of cases given by the weights).
+* As a two-column integer matrix: the first column gives the number of successes and the second the number of failures.
+
+
+## Pioggia nel bacino dell'Eden 
+
+I dati `edenPrec` contengono informazioni su alcune variabili relative alla pioggia di Dicembre nel bacino del fiume Eden, nel nordovest dell'Inghilterra. Il fiume ha causato alcune alluvioni di recente, e si desidera indagare se stanno aumentando i mesi con molti giorni di pioggia e se alcuni indicatori delle condizioni climatiche globali (NAO e SOI) abbiano un'influenza sulla probabilità che si registrino molti giorni di pioggia nel bacino. 
+
+```{r}
+edenPrec <- structure(list(year = c(1961, 1962, 1963, 1964, 1965, 1966, 1967, 
+1968, 1969, 1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 
+1979, 1980, 1981, 1982, 1983, 1984, 1985, 1986, 1987, 1988, 1989, 
+1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 
+2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 
+2012, 2013, 2014, 2015, 2016, 2017), ndays_prec = c(17L, 20L, 
+14L, 22L, 27L, 29L, 21L, 16L, 23L, 21L, 23L, 19L, 24L, 30L, 18L, 
+23L, 20L, 24L, 25L, 27L, 14L, 20L, 24L, 25L, 26L, 28L, 19L, 20L, 
+14L, 22L, 12L, 18L, 28L, 25L, 17L, 17L, 26L, 27L, 26L, 21L, 19L, 
+21L, 20L, 24L, 19L, 21L, 19L, 17L, 26L, 19L, 31L, 23L, 25L, 25L, 
+31L, 19L, 25L), tdays = c(31L, 31L, 31L, 31L, 31L, 31L, 31L, 
+31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 
+31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 
+31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 
+31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L, 31L), nao = c(-1.72, 
+-0.66, -3.09, -1.24, 1.24, 1.68, -0.53, -1.73, -0.26, -1.58, 
+0.76, 2.11, -1.65, 3.06, -1.57, -3.63, -0.25, -2.08, 2.07, 1.55, 
+-2.2, 2.64, 0.83, 1.52, -0.43, 3.42, -0.81, 1.85, -2.23, 0.34, 
+1.24, 0.21, 2.17, 2.86, -3.33, -4.7, -0.2, 1.95, 2.13, -1.41, 
+-2.25, -0.98, -0.85, 1.27, -0.81, 3.03, 1.36, -0.58, -3.73, -4.61, 
+3.2, 0.6, 3.54, 1.89, 4.22, 2.1, 1), soi = c(1.31, -0.1, -1.35, 
+-0.49, 0.02, -0.61, -0.78, 0.13, 0.24, 1.83, 0.15, -1.47, 1.76, 
+-0.14, 2.05, -0.48, -1.23, -0.21, -0.9, -0.21, 0.41, -2.48, -0.17, 
+-0.24, 0.12, -1.64, -0.66, 1.09, -0.62, -0.38, -2.02, -0.71, 
+0.07, -1.41, -0.72, 0.71, -1.12, 1.32, 1.37, 0.77, -1.06, -1.3, 
+0.92, -0.94, 0.01, -0.39, 1.49, 1.43, -0.95, 2.9, 2.45, -0.77, 
+-0.05, -0.66, -1, 0.19, -0.27)), class = "data.frame", row.names = c(NA, 
+-57L))
+```
+
+La principale variable di interesse è `ndays_prec`, il numero di giorni di pioggia nel mese. 
+
+Possiamo specificare il modello in due modi: 
+
+```{r}
+# number of failures
+edenPrec$ndays_noprec <- edenPrec$tdays - edenPrec$ndays_prec
+rainfit_year <- glm(cbind(ndays_prec, ndays_noprec) ~ year, 
+                     data = edenPrec, family = binomial)
+summary(rainfit_year)
+# proportion of successes 
+edenPrec$propPrec <- edenPrec$ndays_prec/edenPrec$tdays
+rainfit_yearalt <- glm(propPrec ~ year, 
+                       # but need to account for the number of trials 
+                       weights = tdays, 
+                     data = edenPrec, family = binomial)
+summary(rainfit_yearalt)
+```
+
+
+### La funzione legame
+
+Di default quando specifichiamo di voler usare la distribuzione binomiale R usa la funzione legame canonica, il logit. Proviamo a vedere cosa succede se cambiamo la funzione legame (link function). 
+
+## Challengers e O-rings
+
+Vediamo un esempio molto famoso che ha avuto conseguenze molto rilevanti legate al disastro dello [https://it.wikipedia.org/wiki/Disastro_dello_Space_Shuttle_Challenger](Shuttle Challenger). L'esplosione del razzo fu imputata al fatto che delle guarnizioni di sicurezza (O-rings) ebbero un guasto causando una perdita nel serbatoio e l'esplosione. Ex-post la causa del guasto agli O-rings fu identificata nella bassa temperatura a cui venne effettuato il lancio. La sera prima del lancio, sebbene le previsioni meteo indicavano che la temperatura il giorno successivo sarebbe stata bassa (tra i 25 e i 27 gradi Fahrenheit), si decise di andare avanti con il lancio sulla base delle informazioni disponibili sui lanci precedenti in cui erano stati riscontrati danni agli O-rings, in cui non si era rilevato un effetto della temperatura sulla probabilità di riscontrare danni agli O-rings. I dati sono contenuti nel dataset `shuttles1`: ogni shuttle aveva un totale di 6 O-rings e la variabile `Damaged` indica quanti degli O-rings siano risultati danneggiati mentre `Temp` indica la temperatura a cui erano avvenuti i lanci. 
+
+```{r}
+shuttles1 <- read.table("../data/shuttles1.txt", header = TRUE)
+plot(shuttles1, ylim = c(0,3))
+shuttles1$prop <- shuttles1$Damaged / 6
+shuttles1$NotDamaged <- 6 - shuttles1$Damaged
+plot(shuttles1$Temp, shuttles1$prop, ylim = c(0,1))
+```
+
+
+Stimiamo la probabilità che avvenga un danneggiamento agli O-rings in funzione della temperatura: 
+
+```{r}
+# option with matrix
+fit_shuttle1_mat <- glm(cbind(Damaged, NotDamaged) ~ Temp, data = shuttles1, family = binomial)
+summary(fit_shuttle1_mat)
+# options with proportion 
+fit_shuttle1_prop <- glm(prop ~ Temp, data = shuttles1, weights = rep(6, nrow(shuttles1)), family = binomial)
+summary(fit_shuttle1_prop)
+```
+
+
+La stima è equivalente e si trova un effetto non significativo della temperatura: 
+
+```{r}
+plot(shuttles1$Temp, shuttles1$prop, ylim = c(0,1), xlim = c(20, 75))
+nd <- data.frame(Temp = seq(10, 85))
+lines(nd$Temp, predict(fit_shuttle1_prop, type = "r", newdata = nd),
+      ylim = c(0,1))
+abline(v = 25, lty = 2, col = "darkred")
+```
+
+Tuttavia nell'analisi manca l'informazione sui lanci in cui non erano stati registrati errori: le informazioni su tutti i lanci precedenti all'incidente sono contentui nel dataset `shuttles2`: 
+
+```{r}
+shuttles2 <- read.table("../data/shuttles2.txt", header = TRUE)
+plot(shuttles2, ylim = c(0,3))
+shuttles2$prop <- shuttles2$Damaged / 6
+shuttles2$NotDamaged <- 6 - shuttles2$Damaged
+plot(shuttles2$Temp, shuttles2$prop, ylim = c(0,1))
+```
+
+
+Stimiamo un modello in cui le informazioni di tutti i lanci sono utilizzate: 
+
+```{r}
+# options with proportion 
+fit_shuttle2_prop <- glm(prop ~ Temp, data = shuttles2, weights = rep(6, nrow(shuttles2)), family = binomial)
+summary(fit_shuttle2_prop)
+```
+
+`Temp` ora ha un effetto ed è molto significativa
+
+```{r}
+plot(shuttles2$Temp, jitter(shuttles2$prop,amount = 0.01), ylim = c(0,1), xlim = c(20, 75))
+nd <- data.frame(Temp = seq(10, 85))
+lines(nd$Temp, predict(fit_shuttle2_prop, type = "r", newdata = nd),
+      col = "dodgerblue")
+abline(v = 25, lty = 2, col = "darkred")
+```
+
+
+La probabilità di un problema con gli O-rings in un lancio a temperature molto basse viene stimata molto alta, ma stiamo estrapolando molto al di fuori delle temperature per cui sono già stati fatti lanci: la stima sarà molto imprecisa, ma forse era alta abbastanza da motivare uno stop al lancio del razzo. 
+
+
+# Verifica della teoria tramite simulazione 
+
+Abbiamo detto che l'inferenza nei modelli lineari generalizzati si basa sulla distribuzione approssimata di $\hat{\beta}$. Dato che $\hat{\beta}$ viene stimato tramite il metodo della massima verosimiglianza si ha che il seguente risultato approssimato:  
+
+\[\hat{\beta} \sim N(\beta, (X^TVX)^{-1})\]
+
+Andiamo a verificare tramite uno studio di simulazione se questo risultato sia valido (e nel caso andiamo a vedere se ci sono situazioni in cui è più o meno robusto). 
+
+Andiamo quindi a generare dei dati usando un modello noto per poi andare a vedere cosa succede quando stimiamo il modello usando i dati generati dal modello noto. Dobbiamo generare dati da una distribuzione che appartiene alla famiglia esponenziale e usare una funzione legame per legare il valore atteso della distribuzione al predittore lineare. Iniziamo con un modello in cui la variabile risposta segue una distribuzione di Poisson il cui valore atteso dipende da una variabile esplicativa (che prendiamo essere un campione da una uniforme in (-4.5, 4.5)) e due parametri ($\beta_0$, $\beta_1$) (che prendiamo avere valore (3,0.05) ): 
+
+```{r}
+n <- 60 ## what happens if this decreases? 
+x_vals <- sort(runif(n, -4.5, 4.5))
+beta_vals <- c(3,0.05)
+Xmat <- cbind(rep(1, n), x_vals)
+set.seed(76)
+y_sim <- rpois(n, poisson()$linkinv(Xmat %*% beta_vals))
+plot(Xmat[,2], y_sim)
+```
+
+I dati mostrano una relazione tra predittore e risposta: possiamo stimare questa relazione: 
+
+```{r}
+fit_sim <- glm(y_sim ~ x_vals, family = poisson)
+fit_sim$coefficients
+## compared to 
+beta_vals
+```   
+
+La stima dei parametri è abbastanza vicina aio veri valori dei parametri usati per generare i dati e la funzione stimata infatti assomiglia abbastanza alla vera relazione tra predittore e risposta: 
+```{r}
+par(mfrow=c(1,2))
+plot(x_vals, Xmat %*% beta_vals, type="l", main = "Linear predictor")
+lines(x_vals, Xmat %*% fit_sim$coefficients, col = 4)
+plot(x_vals, exp(Xmat %*% beta_vals), type="l",  main = "Response")
+lines(x_vals, exp(Xmat %*% fit_sim$coefficients), col = 4)
+```
+
+Ripetiamo quest'esperimento 50 volte: 
+
+```{r}
+sim_fit_coef <- function(n, X, pars){
+  y_sim <- rpois(n, exp(X %*% pars))
+  glm(y_sim ~ x_vals, family = poisson)$coefficients
+}
+NSIM <- 50; set.seed(5454)
+
+```
+
+*Esercizio*: si può provare a vedere cosa succede quando cambia la numerosità campionaria; oppure quando cambia la vera funzione $\mu(x)$, in particolare quando prende valori abbastanza piccoli (ad esempio in un intervallo tra 0 e 4) o abbastanza grandi (ad esempio in un intervallo tra 70 e 90)
+
+
+## Distribuzione Binomiale 
+
+Abbiamo visto cosa succede quando la distribuzione che genera i dati è una Poisson. Cosa succede quando usiamo una distribuzione binomiale? Possiamo innanzi tutto generare una vera funzione $p(x)$ usando la una funzione logistica:
+
+```{r}
+n <- 60
+x_vals <- runif(n,0, 4)
+true_coefs <- c(-1.5,2)
+Xmat <- cbind(rep(1, n), x_vals)
+range(Xmat %*% true_coefs)
+range(exp(Xmat %*% true_coefs)/(1+exp(Xmat %*% true_coefs)))
+```
+
+Possiamo ora generare dei dati da una variabile binomiale. Per ora ci concentriamo su delle distribuzioni in cui il numero di tentativi fatti per l'evento siano 200: 
+
+```{r}
+sim_fit_coef <- function(n, X, size, pars){
+  y_sim <- rbinom(n, size = size, exp(X %*% pars)/(1+exp(X %*% pars)))
+  y_fail <- size - y_sim
+  glm(cbind(y_sim, y_fail) ~ x_vals, family = binomial)$coefficients
+}
+sim_fit_coef(n=n, X = Xmat, size = 200, pars = true_coefs)
+NSIM <- 500; set.seed(5454)
+```
+

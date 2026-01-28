@@ -1,0 +1,209 @@
+---
+title: "Lab 1 - Regressione Lineare in R"
+author: "Ilaria Prosdocimi"
+output:
+  html_document:
+    fig_caption: yes
+    theme: flatly #sandstone #spacelab #flatly
+    highlight: pygments
+    code_folding: show
+    toc: TRUE
+    toc_depth: 2
+    number_sections: TRUE
+    toc_float:
+      smooth_scroll: FALSE
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+getwd()
+```
+
+In questo lab useremo il file che contiene informazioni sui pinguini delle isole Palmers: 
+
+```{r}
+pengs <- read.csv("labs/data/penguins.csv")
+summary(pengs)
+## eliminiamo le righe con valori mancanti (non è sempre una buona idea) 
+pengs <- na.omit(pengs)
+nrow(pengs)
+```
+
+Il primo modello in esame prevede di stimare come la lunghezza della pinna di un pinguino (`flipper_length_mm`) varia in funzione della massa (`body_mass_g`). 
+
+```{r}
+plot(pengs[,c("flipper_length_mm","body_mass_g")], pch = 19)
+```
+
+Possiamo usare gli stimatori plug-in ed ottenere: 
+
+\[\hat{\beta}_1 = \frac{c_{XY}}{s^2_{X}} =  r_{XY} \frac{s_{Y}}{s_{X}},\quad \mbox{and} \quad \hat{\beta}_0 = \overline{y}-\hat{\beta}_1 \overline{x}  \]
+
+```{r byHandCalc}
+rxy <- cor(pengs$flipper_length_mm, pengs$body_mass_g)
+sx <- sd(pengs$body_mass_g); sy <- sd(pengs$flipper_length_mm)
+mx <- mean(pengs$body_mass_g)
+my <- mean(pengs$flipper_length_mm)
+beta1_hat <- rxy*sy/sx
+beta0_hat <- my - beta1_hat * mx
+c(beta0_hat, beta1_hat)
+```
+
+Oppure, più realisticamente possiamo usare le funzioni già presenti in R. 
+
+# Modelli lineari in R 
+
+La principale funzione da usare per stimare modelli lineari in R è `lm` - (si veda `help(lm)`). 
+
+Il primo argomento di `lm` è `formula`: con questo argomento si specifica a sinistra di una tilde quale è la variabile risposta e a destra della tilde quale sia il predittore del modello (o i predittori): 
+
+```{r}
+fit <- lm(flipper_length_mm ~ body_mass_g, data = pengs)
+fit
+```
+
+Vi sono una serie di funzioni che possiamo applicare all'oggetto `fit` che ha classe `lm`: 
+
+```{r}
+class(fit)
+# see 
+# ?lm
+```
+
+
+```{r}
+plot(pengs[,c("body_mass_g","flipper_length_mm")], pch = 19)
+abline(fit, col = "red", lwd = 2)
+```
+
+Quando usiamo `summary` vediamo anche l'informazione sul valore del `Residual standard error`: questo corrisponde ad una stima di $\sigma$. Come è derivato? E il valore di $R^2$? E l'incertezza sui valori stimati di $\beta_0$ e $\beta_1$? 
+
+
+```{r}
+summary(fit)
+```
+
+```{r}
+sigmahat <- sqrt(sum(residuals(fit)^2)/(nrow(pengs) - 2))
+s2x <- sum((pengs$body_mass_g-mean(pengs$body_mass_g))^2)/nrow(pengs) 
+sigmahat/sqrt(nrow(pengs) * s2x) # se(beta1hat)
+
+```
+
+
+```{r}
+pengs$bodyhg <- pengs$body_mass_g / 100
+summary(lm(flipper_length_mm ~ bodyhg, data = pengs))
+```
+
+In particolare possiamo usare la funzione `predict` oltre a restituire una stima di $m(x)$ permette di ottenere informazioni su quanto sia incerta questa stima (`?predict`). 
+
+
+
+```{r}
+n <- nrow(pengs)
+predict(fit, newdata = data.frame(body_mass_g = c(2000, 4001, 4000)), 
+        se.fit = TRUE)
+sqrt(sigmahat^2/n * (1 + (c(2000, 4000, 4001) - mean(pengs$body_mass_g))^2/s2x))
+
+```
+
+
+
+```{r}
+mean(residuals(fit))
+cor(residuals(fit), pengs$body_mass_g)
+plot( pengs$body_mass_g, residuals(fit))
+abline(h = 0)
+plot(fitted(fit), residuals(fit), pch = 19)
+hist(residuals(fit))
+qqnorm(residuals(fit))
+qqline(residuals(fit))
+#r2
+1-sum(residuals(fit)^2)/sum((pengs$flipper_length_mm - mean(pengs$flipper_length_mm))^2)
+plot(fit)
+```
+
+Grafico altri predittori VS residui 
+
+```{r}
+plot(pengs$bill_depth_mm, residuals(fit))
+```
+
+```{r}
+lm(flipper_length_mm ~ body_mass_g+bill_depth_mm, 
+   data = pengs)
+```
+
+
+
+**Esercizio**
+
+Cosa succede alla variabilità della stima dei coefficienti se si usa come variabile esplicativa una nuova variabile 
+
+```{r}
+pengs$mass_minus_4000 <- pengs$body_mass_g - 4000
+```
+
+E cosa succede invece se il peso viene espresso in kilogrammi: 
+
+```{r}
+pengs$body_mass_Kg <- pengs$body_mass_g/1000
+```
+
+Infine, cosa cambia invece quando si cambia anche la variabile risposta, per esempio esprimendo il valori in cm
+
+```{r}
+pengs$flicper_length_mm <- pengs$flipper_length_mm*10
+```
+
+
+
+
+
+
+# Simulazione come metodo per verificare la teoria 
+
+Il modello teorico: 
+
+\[Y=\beta_0 + \beta_1 X + \varepsilon\]
+
+$\varepsilon$ iid, omoschedastici a media 0, per esempio potremmo prendere $\varepsilon \sim Exp(1) - 1$. 
+ 
+```{r}
+n <- 100
+x1 <- runif(n, -1, 1)
+x2 <- runif(n, -3, 3)
+compCoefs <- function(n = 100, beta0, beta1, rate=1, x1, x2){
+  epsilon <- (rexp(n, rate = rate)-1/rate)
+  y1 <- (beta0 + beta1 *x1) + epsilon
+  y2 <- (beta0 + beta1 *x2) + epsilon
+  c(coef(lm(y1  ~ x1)),coef(lm(y2  ~ x2))) 
+}
+compCoefs(n=100, beta0 = 1, beta1 = 2, x1 = x1, x2= x2)
+
+set.seed(123)
+out <- t(replicate(5000,compCoefs(n=100, beta0 = 1, beta1 = 2, x1 = x1, x2= x2)))
+# plot(x, y)
+# abline(lm(y  ~ x))
+
+```
+
+
+```{r}
+plot(x1, out[1566,1] + out[1566,2]*x1, type ="l")
+for(j in sample(x = seq(1, nrow(out)), size = 40)) 
+  lines(x1, out[j,1] + out[j,2]*x1, type ="l")
+
+plot(x2, out[1566,3] + out[1566,4]*x2, type ="l")
+for(j in sample(x = seq(1, nrow(out)), size = 40)) 
+  lines(x2, out[j,3] + out[j,4]*x2, type ="l")
+
+```
+
