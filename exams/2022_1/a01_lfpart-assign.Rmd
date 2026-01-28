@@ -1,0 +1,340 @@
+---
+title: "CT0429 - Analisi Predittiva - aa 21/22 - Appello I"
+author: "Nome Cognome - matricola"
+output: 
+  html_document: 
+    toc: yes
+---
+
+# Istruzioni
+
+Salvate questo file con il nome `matricola.Rmd`. Questo sarà il file che dovrete consegnare. Il file deve compilare senza problemi: files che non possono essere compilati correttamente saranno penalizzati. 
+
+
+Per essere sicuri di poter trovare il file al momento della consegna potete controllare dove è il file quando compilate il file la prima volta usando il comando `getwd()`. 
+
+```{r, eval=TRUE}
+getwd()
+## da cancellare quando siete sicuri di dove è il file
+```
+
+
+Attenzione - per tutto l'esame, se non specificato esplicitamente, il livello di significatività da usare è $\alpha = 0.02$
+
+
+# Esercizio 1
+
+Il data-scientist di un'azienda che produce app ludiche per cellulari vuole costruire un modello predittivo per il tempo in cui gli utenti hanno usato l'app. Dal dataset disponibile estrae i records delle persone che, nel periodo di Gennaio-Marzo 2021 hanno dichiarato al momento dell'iscrizione di voler condividere con l'azienda l'informazione sulla loro età: questo identifica 70 utenti per cui sono disponibili le seguenti informazioni: 
+
+* `numAccess`: il numero totale di accessi eseguiti all'app dall'utente nell'anno 2021
+* `age`: l'età dichiarata dall'utente
+* `time`: il tempo passato dall'utente usando l'app 
+
+La variabile `time` è la variabile di interesse (variabile risposta). 
+
+Tutte le informazioni a disposizione dell'analista sono disponibili nel dataset `dex1` che si può caricare usando il seguente codice: 
+
+```{r,cache=TRUE}
+dex1 <- read.csv("ex1_data.csv", header = TRUE)
+```
+
+### Es. 1.a 
+
+Si costruisca un primo modello `fit1` in cui le variabili `age` e `numAccess` sono usate come predittori. Si stimi il modello `fit1` commentando la sua significatività. 
+
+Il specificato e':
+
+$$time = \beta_{0} + \beta_{1}age + \beta_{2}numAccess$$
+
+```{r}
+fit1 <- lm(time ~ age + numAccess, data = dex1)
+summary(fit1)
+```
+Nel `summary` del modello troviamo un valore particolarmente alto dell' $R^{2}$ (il modello spiega una ampia proporzione della variabilità nei dati) e della F-statistic, per un p-value molto piccolo. Percio', il modello sembra essere particolarmente significativo.
+
+
+### Es. 1.b 
+
+Si costruisca un modello `fit2` in cui solo la variabile `numAccess` è usata come predittore
+
+```{r}
+fit2 <- lm(time ~ numAccess, data=dex1)
+summary(fit2)
+```
+
+Si verifichi tramite una verifica di ipotesi se il modello `fit2` risulta significativo rispetto al modello `fit1`. Si scriva in forma esplicita l'ipotesi nulla e alternativa che si stanno verificando tramite il test indicando infine se è possibile rifiutare l'ipotesi nulla. 
+
+Essendo i due modelli, nested-models possiamo scrivere le ipotesi nella seguente maniera:
+
+* $H_{0}: age = 0 \rightarrow  time = \beta_{0} + (\beta_{1}age \times 0) + \beta_{2}numAccess$
+    + Il predittore `age` non mostra una relazione lineare rilevante con la variabile risposta
+* $H_{A}: age \neq 0 \rightarrow  time = \beta_{0} + \beta_{1}age + \beta_{2}numAccess$
+    + Il predittor `age` mostra una relazione lineare rilevante con la variabile risposta
+
+Otteniamo la statistica test tramite:
+
+$$\frac{\widehat{\beta}_{j} - \beta_{j}^{*}}{SE[\widehat{\beta}_{j}]} \sim t_{n-p} 
+    \left\{ \begin{array}{rcl} 
+H_{0}: \beta_{j} = \beta_{j}^{*} \\
+H_{A}: \beta_{j} \neq \beta_{j}^{*}
+    \end{array}\right. $$
+    
+```{r}
+# t_obs
+t_obs<-(coefficients(fit1)[2]-0)/summary(fit1)$coef[2,2]
+t_obs
+
+# p-value
+2*pt(abs(t_obs), df.residual(fit1), lower.tail = FALSE )
+```
+Il p-value del test d'ipotesi sembra essere particolarmente alto e ci permette di rifiutare ad un livello superiore di circa 9.28%, ma non del 2% come fissato dall'esercizio.
+
+Considerando un intervallo di confidenza al livello di significativita' del 98%, confermiamo che il valore `0` cade all'interno dello stesso:
+
+```{r}
+# Confidence Intervals
+confint(fit1, level=0.98)[2,]
+```
+```{r,solution=TRUE}
+fit2 <- lm(time ~ numAccess, data = dex1)
+anova(fit2, fit1)
+```
+
+Usando anova per confrontare fit1 e fit2 (che sono due modelli annidati) si verifica l'ipotesi nulla: \[H_0: \beta_{age} = 0 \]
+contro l'ipotesi alternativa 
+\[H_1: \beta_{age} \neq 0 \]
+Si verifica cioè se è possibile eliminare un predittore dal modello (e stimare un parametro in meno) ed ottenere una stima comparabile in termine di errore quadratico medio (RSS). 
+Dato che il p-value del test `anova` è molto alto non si può rifiutare l'ipotesi nulla: non vi è evidenza che mantenere la variabile `age` migliori la stima del modello e possiamo quindi eliminare la variabile. 
+
+
+### Es. 1.c
+
+Usando il modello `fit2` si calcolino degli intervalli di confidenza e di predizione per degli utenti che compiano 60 e 200 accessi. Si commenti l'ampiezza degli intervalli ottenuti e si spieghi brevemente la differenza tra intervallo di confidenza e di predizione.  
+
+Calcoliamo l'intervallo di confidenza
+```{r}
+nd <- data.frame(numAccess=c(60,200))
+
+ci_vals <- predict(fit2, newdata=nd, interval="confidence", level = 0.98)
+ci_vals
+
+ci_vals[,3]-ci_vals[,2]
+```
+
+Calcoliamo l'intervallo di predizione
+```{r}
+pi_vals <- predict(fit2, newdata=nd, interval="prediction", level = 0.98)
+pi_vals
+pi_vals[,3]-pi_vals[,2]
+```
+
+Nell'intervallo di confidenza, ci interessiamo all'incertezza intorno a $\mathbb{E}[\hat{y}(x_{0})]$, ovvero rispetto ai tipici valori che un predittore $x_{0}$ assume. Normalmente si utilizzano per valori che sono nel range dei valori osservati. Al contrario, nell'intervallo di predizione ci concentriamo sull'incertezza intorno a $Y_{0}$ una nuova osservazione di $Y$ dato il predittore $x_{0}$ e questo aumenta la variabilita' della stima, aumentando anche l'ampiezza dell'intervallo di predizione.
+
+Il secondo intervallo di confidenza è più ampio del primo: questo perché non ci sono utenti nel campione che abbiano eseguito 200 accessi: per fare una stima per quel tipo di utente è necessario estrapolare la stima ben oltre i valori con cui il modello è stato stimato e quindi vi è molta incertezza nella stima. 
+Questo è vero sia per gli intervalli di confidenza che per gli intervalli di predizione. 
+Gli intervalli di confidenza danno un'indicazione dell'incertezza attorno al valore medio del tempo passato da ogni utente nell'app; gli intervalli di predizione invece danno un'indicazione dell'incertezza per quelli che possono essere gli effettivi valori del tempo passato da un utente nell'app. Dato che la media è per definizione meno variabile delle singole osservazioni gli intervalli di confidenza sono meno ampi degli intervalli di predizione.  
+
+### Es. 1.d
+
+Si commenti sulla generalizzabilità dell'analisi svolta dal data scientist per tutti gli utenti dell'app (suggerimento: si rilegga attentamente l'introduzione dell'esercizio in cui viene presentato il dataset).
+
+Essendo il dataset limitato a dati del periodo "Gennaio-Marzo 2021", sarebbe difficile dire che il campione sia ben generalizzato, dal momento che i mesi invernali tendono ad essere quelli in cui si tende a stare al chiuso e quindi ad utilizzare di piu' i dispositivi mobili. 
+Inoltre l'eta' e' stata dichiarata al momento dell'iscrizione e senza verifiche, il che puo' portare a pensare che ci possano essere svariate istanze di persone che abbiano dichiarato il falso.
+Per quanto riguarda gli utenti, un campione di 70 utenti volontari, restringe i dati alle persone che hanno deciso di condividere le informazioni ed e' lontano da un tipico campione randomizzato della popolazione con la conseguenza di poter essere poco rappresentativo. 
+Infine, le variabili esplicative raccolte sono poche ed e' difficile ottimizzare un modello, quando (come si e' dimostrato sopra) una delle due variabili esplicative e' statisticamente poco rilevante.
+
+# Esercizio 2
+
+Il gestore di un sistema di rete mantiene un registro di informazioni varie in cui registra anche se in una giornata si sono registrati guasti che richiedono l'intervento di un operatore esterno per ripristinare il sistema. Il file `ex2_data.csv` contiene le seguenti variabili: 
+
+
+* `numAccess`: il numero di accessi alla rete
+* `numRequests`: il numero di richieste gestite dalla rete
+* `durationMean`: la durata media di una sessione di un utente
+* `durationMax`: la durata massima di una sessione di un utente 
+* `durationMin`: la durata minima di una sessione di un utente
+* `fail`: un indicatore che ha valore 1 quando si è registrato un guasto che richiede l'intervento di un operatore esterno per ripristinare il sistema 
+
+Si carichi il dataset usando il codice seguente:  
+
+```{r,cache=TRUE}
+dex2 <- read.csv("ex2_data.csv", header = TRUE)
+```
+
+Si desidera costruire un modello predittivo per la variabile `fail`, un modello cioè che predica se in un giorno sarà necessario l'intervento di un operatore esterno per ripristinare il sistema. 
+
+### Es. 2.a 
+
+Si stimi il modello `fitTot`, un modello lineare generalizzato in cui tutti predittori sono inseriti nel modello e la variabile risposta è l'indicatore di un guasto (`fail`): si usi la distribuzione Binomiale con legame canonico. Si commenti l'effetto stimato delle variabili `numAccess` e `numRequests`
+
+
+```{r}
+fitTot <- glm(fail ~ ., family=binomial(link="logit"), data=dex2)
+
+summary(fitTot)
+```
+L'effetto dei predittori, in questo contesto puo' essere interpretato come l'effetto che un particolare preditore ha sul log-odd-ratio, assumendo che tutti gli altri predittori abbiano valori fissati. 
+
+Per quanto riguarda `numAccess` l'effetto leggermente positivo di `r coefficients(fitTot)[2]` punti ed e' anche molto significativo dato che il p-value e' molto piccolo con un valore della z-value relativamente grande. 
+
+```{r}
+plot(dex2$numAccess, jitter(dex2$fail, amount = 0.14), pch = 16,
+     main="Confidence Interval for numAccess")
+
+# GLM with 1 predictor
+fit_numAccess <- glm(fail ~ numAccess, family=binomial, data=dex2)
+
+# "pure" numAccess effect
+lines(sort(dex2$numAccess), 
+      predict(fit_numAccess, 
+              newdata = data.frame(numAccess = sort(dex2$numAccess)), 
+              type = "response"), col = "red")
+
+# Fix the values
+nd <- data.frame(numAccess = seq(min(dex2$numAccess), max(dex2$numAccess)), 
+                 numRequests = median(dex2$numRequests),
+                 durationMean = median(dex2$durationMean), 
+                 durationMax = median(dex2$durationMax), 
+                 durationMin = median(dex2$durationMin))
+
+# numAccess effect, given that all the predictors have median values
+lines(sort(nd$numAccess), 
+      predict(fitTot, newdata = nd,
+             type = "response"), col = "orange")
+
+# Uncertainty estimation
+
+# fit, se.fit
+linpred <- predict(fitTot, newdata = nd,
+             type = "link", se.fit = TRUE)
+
+# confidence intervals for the linear predictor
+# upper and lower bound
+cint <- cbind(linpred$fit - qnorm(.995) * linpred$se.fit,
+              linpred$fit + qnorm(.995) * linpred$se.fit)
+
+# two columns of values between 0 and 1
+cint_response <-  binomial()$linkinv(
+    cbind(linpred$fit - qnorm(.995) * linpred$se.fit, 
+          linpred$fit + qnorm(.995) * linpred$se.fit))
+
+lines(sort(nd$numAccess), cint_response[,1], lty = 2, col = "purple")
+lines(sort(nd$numAccess), cint_response[,2], lty = 2, col = "purple")
+```
+
+Invece, `numRequests` ha un effetto moderatamente negativo sul log-odd-ratio di `r `coefficients(fitTot)[3]` punti, che pero' e' poco significativo.
+
+
+```{r}
+plot(dex2$numRequests, jitter(dex2$fail, amount = 0.14), pch = 16)
+
+# GLM with 1 predictor
+fit_numRequests <- glm(fail ~ numRequests, family=binomial, data=dex2)
+
+# "pure" numAccess effect
+lines(sort(dex2$numRequests), 
+      predict(fit_numRequests, newdata = data.frame(numRequests = sort(dex2$numRequests)), type = "response"), 
+      col = "red")
+
+# Fix the values
+nd <- data.frame(numRequests = seq(min(dex2$numRequests), max(dex2$numRequests)), 
+                 numAccess = median(dex2$numAccess),
+                 durationMean = median(dex2$durationMean), 
+                 durationMax = median(dex2$durationMax), 
+                 durationMin = median(dex2$durationMin))
+
+# numAccess effect, given that all the predictors have median values
+lines(sort(nd$numRequests), 
+      predict(fitTot, newdata = nd,
+             type = "response"), col = "orange")
+
+# Uncertainty estimation
+
+# fit, se.fit
+linpred <- predict(fitTot, newdata = nd,
+             type = "link", se.fit = TRUE)
+
+# confidence intervals for the linear predictor
+# upper and lower bound
+cint <- cbind(linpred$fit - qnorm(.995) * linpred$se.fit,
+              linpred$fit + qnorm(.995) * linpred$se.fit)
+
+# two columns of values between 0 and 1
+cint_response <-  binomial()$linkinv(
+    cbind(linpred$fit - qnorm(.995) * linpred$se.fit, 
+          linpred$fit + qnorm(.995) * linpred$se.fit))
+
+lines(sort(nd$numRequests), cint_response[,1], lty = 2, col = "purple")
+lines(sort(nd$numRequests), cint_response[,2], lty = 2, col = "purple")
+```
+
+La stima dei parametri che descrivono l'effetto di numAccess e numRequests è di segno opposto: si stima che al crescere del numero di accessi aumenta la probabilità che si verifichi un guasto, mentre questa probabilità diminuisce all'aumentare del numero di richieste. Quest'ultimo effetto però viene stimato essere poco significativo (quindi non si può rifiutare $H_0: \beta_{numRequests} = 0$).  
+
+### Es. 2.b
+
+Usando un approccio backward si parta dal modello `fitTot` per individuare dei modelli che risultino in qualche senso ottimali. Si utilizzi sia AIC che BIC per l'individuazione di questo modello ottimale. Si nota una qualche differenza nella scelta effettuata usando i due criteri? Si commenti il risultato della selezione delineando le differenze tra i due criteri. 
+
+```{r}
+# AIC
+fitTot_AIC <- step(fitTot, direction = "backward", trace=-1, k=2)
+# BIC
+fitTot_BIC <- step(fitTot, direction = "backward", trace=-1, k=log(nrow(dex2)))
+
+fitTot_AIC$call
+fitTot_BIC$call
+```
+
+
+AIC e BIC sono Information Criteria, misure di bonta' del modello che tengono in considerazione il numero di parametri stimati e che penalizzano i modelli sovra-parametrizzati. In particolare AIC viene utilizzato quando `n` e' grande, mentre BIC favorisce i modelli parsimoniosi.
+
+Infatti lo step decisivo, nella BIC Backward Selection, evidenza che il miglioramento del punteggio, di soli tre punti, non porta un grande vantaggio rispetto a tenere la variabile `numRequests` all'interno del modello. Il metodo AIC Backward Selection invece, tende a conservarlo.
+
+```{r}
+# AIC
+c(fitTot_AIC$deviance, fitTot_AIC$null.deviance, fitTot_AIC$aic)
+# BIC
+c(fitTot_BIC$deviance, fitTot_BIC$null.deviance, fitTot_BIC$aic)
+```
+
+Infine, considerando che `numRequests` non e' un parametro statisticamente rilevante, e' preferibile il modello `fitTot_BIC`.
+
+### Es. 2.c 
+
+Usando il modello `fitTot`, si stimi la probabilità che si registri un guasto in due giornate con valori dei predittori pari a quelli contenuti nel dataset `nd` specificato più in basso. 
+
+Si produca anche una stima intervallare per la probabilità usando un livello di confidenza pari al 95\%.
+
+```{r}
+nd <- data.frame(numAccess = c(10,5290), 
+                 numRequests = c(2000,5000), 
+                 durationMean = c(10,24.8), 
+                 durationMax = c(75,90), 
+                 durationMin = c(9,5))
+rownames(nd) <- c("day1","day2")
+
+# Predicted probabilities
+predict(fitTot, type = "response", newdata = nd)
+preds <- predict(fitTot, type = "link", newdata = nd, se.fit = TRUE)
+cbind(binomial()$linkinv(preds$fit + qnorm(0.025)*preds$se.fit),
+      binomial()$linkinv(preds$fit + qnorm(0.975)*preds$se.fit))
+```
+
+
+### Es. 2.d
+
+Usando il modello `fitTot` si predica per ogni giornata del dataset `dex2` se ci si aspetta che avvenga un guasto. Per definire se per una giornata viene predetto un guasto si usi un livello di probabilità pari a 0.5, cioè si definisce che per una giornata viene predetto l'evento `guasto` se la la probabilità che ci sia un guasto è > 0.5. Si verifichi la proporzione di predizioni corrette e sbagliate prodotte dal modello. 
+
+
+```{r, solution = TRUE}
+## proporzione predizione corrette
+mean(as.numeric(predict(fitTot, type = "response") > 0.5) == dex2$fail)
+## proporzione predizioni sbagliate
+mean(as.numeric(predict(fitTot, type = "response") > 0.5) != dex2$fail)
+## tabella di contiengenza di predizioni corrette e sbaglate
+table(as.numeric(predict(fitTot, type = "response") > 0.5),dex2$fail)
+```
+
+Il modello predice in maniera corretta l'evento `guasto` in circa il `r 100*round(mean(as.numeric(predict(fitTot, type = "response") > 0.5) == dex2$fail),3)` \% dei casi. 
+
+
+
