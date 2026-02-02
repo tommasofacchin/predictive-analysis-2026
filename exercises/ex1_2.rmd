@@ -1,0 +1,90 @@
+---
+title: "Block 1 ex 2"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+The data in the file `hotel.csv` contain information on temperature (X) and the occupancy level of three hotels (Y) in three different cities.
+
+```{r}
+getwd()
+
+hotels <- read.table("../Datasets/hotels.csv",
+                     header = TRUE,
+                     sep = ",",
+                     stringsAsFactors = TRUE)
+
+str(hotels)
+head(hotels)
+
+```
+
+
+### 1. Produce scatter plots (or other plots you consider useful) to assess the relationship between the variables in the dataset.  
+
+
+```{r}
+
+par(mfrow = c(1, 3))
+for (ct in levels(hotels$City)) {
+  plot(Y ~ X,
+       data = subset(hotels, City == ct),
+       pch = 19,
+       xlab = "Temperature (X)",
+       ylab = "Hotel occupancy (Y)",
+       main = ct)
+}
+par(mfrow = c(1, 1))
+
+```
+
+
+### 2. Fit a linear model in which the hotel occupancy rate is assumed to depend on temperature; provide an interpretation of the fitted model.  
+
+```{r}
+fit_h1 <- lm(Y ~ X, data = hotels)
+summary(fit_h1)
+```
+
+The fitted model suggests that, on average, hotel occupancy is about 50% when temperature is 0 degrees, and the estimated slope is essentially zero: changes in temperature are not significantly associated with occupancy (p ≈ 0.88, R² ≈ 0), so this linear model does not indicate any meaningful effect of temperature on hotel occupancy.
+
+### 3. Fit three separate linear models, one for each city, to study how the hotel occupancy rate depends on temperature. Provide an interpretation of the three models, comparing the results with those obtained in point 2.  
+
+```{r}
+fit_basel <- lm(Y ~ X, data=subset(hotels, City=="Basel"))
+fit_davos <- lm(Y ~ X, data=subset(hotels, City=="Davos"))
+fit_mallorca <- lm(Y ~ X, data=subset(hotels, City=="Mallorca"))
+
+summary(fit_basel)
+summary(fit_davos)
+summary(fit_mallorca)
+```
+
+When fitting separate models by city, the effect of temperature on occupancy is quite different across locations. In Basel, the estimated slope is positive but not statistically significant, so there is only a weak indication that occupancy increases with temperature. In Davos, the slope is significantly negative, meaning that higher temperatures are associated with lower hotel occupancy. In Mallorca, the slope is significantly positive, indicating that occupancy clearly increases as temperature rises. These city-specific patterns cancel each other out in the overall model of point 2, where the common slope for all cities was close to zero and not significant.
+
+### 4. In light of the models fitted in point 3, specify a model that you consider useful to explain, as well as possible, the variability of hotel occupancy as temperature changes in all the cities included in the dataset.
+
+```{r}
+fit_int <- lm(Y ~ X * City, data = hotels)
+summary(fit_int)
+
+plot(Y ~ X,
+     data = hotels,
+     pch = 19,
+     col = City,
+     xlab = "Temperature (X)",
+     ylab = "Hotel occupancy (Y)",
+     main = "Fitted interaction model: Y ~ X * City")
+legend("topleft", legend = levels(hotels$City),
+       col = 1:length(levels(hotels$City)), pch = 19, bty = "n")
+
+for (ct in levels(hotels$City)) {
+  tmp <- subset(hotels, City == ct)
+  abline(lm(Y ~ X, data = tmp), col = which(levels(hotels$City) == ct), lwd = 2)
+}
+
+```
+
+We consider the interaction model Y ~ X * City, which allows both the intercept and the slope of temperature to differ by city. The overall F‑test is significant (p ≈ 0.0002), so this model explains a substantial amount of variability in hotel occupancy. The interaction terms are significant, indicating that the effect of temperature on occupancy is markedly different across cities: in Davos occupancy decreases with temperature, in Mallorca it increases, and Basel serves as the reference pattern.
