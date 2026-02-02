@@ -6,7 +6,8 @@ Personal study notes and exercises for my **Predictive Analysis** course at Ca' 
 
 ```text
 predictive-analysis-2026/
-├─ Datasets/                 
+├─ Datasets/                
+├─ Notes/                  
 ├─ Slides/                   
 ├─ exams/
 └─ labs          
