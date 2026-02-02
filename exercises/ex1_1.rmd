@@ -1,0 +1,154 @@
+---
+title: "Block 1 ex 1"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+```{r}
+getwd()
+
+grains <- read.table("../Datasets/grains.dat",
+                     header = TRUE,
+                     stringsAsFactors = TRUE)
+
+str(grains)
+head(grains)
+
+```
+
+### 1. Produce a plot of the data. Does the relationship between the variables under study appear to be linear?
+
+```{r}
+plot(alcohol ~ nitrogen,
+     data = grains,
+     pch = 19,
+     xlab = "Nitrogen (%)",
+     ylab = "Alcohol",
+     main = "Relationship between alcohol and nitrogen")
+
+```
+
+
+### 2. Provide point estimates for \(\alpha\) and \(\beta\).
+
+```{r}
+fit <- lm(alcohol~nitrogen, data = grains)
+summary(fit)
+```
+
+### 3. Provide a 99% confidence interval estimate for \(\alpha\) and \(\beta\).
+
+```{r}
+confint(fit, level = 0.99)
+```
+
+### 4. What assumptions are necessary to obtain point estimates for the values α and β? What assumptions are necessary to obtain interval estimates for α and β?
+
+For point estimates of \(\alpha\) and \(\beta\) using OLS, we require that the linear model is correctly specified, that the errors have zero mean conditional on nitrogen, finite (ideally constant) variance, independence, and sufficient variability in nitrogen.  
+For interval estimates (confidence intervals) based on the t distribution, we additionally assume that the errors are normally distributed with mean zero and constant variance.
+
+### 5. Add the estimated regression line between alcohol and nitrogen to the plot obtained in question 1.
+
+```{r}
+
+plot(alcohol ~ nitrogen,
+     data = grains,
+     pch = 19,
+     xlab = "Nitrogen (%)",
+     ylab = "Alcohol",
+     main = "regression line between alcohol and nitrogen")
+
+abline(fit, col = "red", lwd = 2)
+
+```
+
+
+### 6. The dataset contains the variable *location*. Write out explicitly the model that R estimates when using the function `lm(alcohol ~ location, data = grains)`.
+
+```{r}
+fit_loc <- lm(alcohol ~ location, data = grains)
+summary(fit_loc)
+```
+
+
+\[
+\text{alcohol}_i
+= \alpha
++ \beta_{\text{Berwicks}}\, I(\text{location}_i = \text{"Berwicks"})
++ \beta_{\text{Caithness}}\, I(\text{location}_i = \text{"Caithness"})
++ \beta_{\text{Orkneys}}\, I(\text{location}_i = \text{"Orkneys"})
++ \varepsilon_i
+\]
+
+where:
+- \(\alpha = E(\text{alcohol} \mid \text{location} = \text{"Aberdeen"})\)
+- \(\beta_{\text{Berwicks}} = E(\text{alcohol} \mid \text{location} = \text{"Berwicks"}) - E(\text{alcohol} \mid \text{location} = \text{"Aberdeen"})\)
+- \(\beta_{\text{Caithness}} = E(\text{alcohol} \mid \text{location} = \text{"Caithness"}) - E(\text{alcohol} \mid \text{location} = \text{"Aberdeen"})\)
+- \(\beta_{\text{Orkneys}} = E(\text{alcohol} \mid \text{location} = \text{"Orkneys"}) - E(\text{alcohol} \mid \text{location} = \text{"Aberdeen"})\).
+
+
+### 7. Is it valid to claim that the variable location explains a large part of the variability of the variable alcohol?
+
+The model with alcohol~location has a multiple R-squared of about 0.73, meaning that location accounts for roughly 73% of the variability in alcohol yield. The overall F-test is highly significant, so location is an important explanatory factor. However, calling this a “large part” of the variability depends on context; it explains a substantial proportion, but not all of the variation in alcohol.
+
+### 8. If we add the variable location to the model in eq. (1), where only nitrogen was present in the model, is the addition of location significant? How can we measure the evidence against not including location in the model?
+
+
+```{r}
+fit2 <- lm(alcohol~nitrogen+location, data = grains)
+summary(fit2)
+anova(fit, fit2)
+```
+
+We compare the model with nitrogen only to the model with nitrogen and location using an F‑test (anova(fit, fit2)). The p‑value is about 0.099, which is larger than the usual 0.05 threshold. Therefore, at the 5% significance level, the addition of location is not statistically significant. At the 10% level the evidence is borderline, but still rather weak, so the data do not provide strong evidence against excluding location from the model.
+
+### 9. Produce a plot of the relationship between location and nitrogen — what can be observed?
+
+```{r}
+plot(location ~ nitrogen,
+     data = grains,
+     pch = 19,
+     xlab = "Nitrogen (%)",
+     ylab = "Location ",
+     main = "relationship between location and nitrogen")
+```
+
+The plot of location against nitrogen shows that different locations tend to be associated with different ranges of nitrogen values. In particular, some locations only occur at low nitrogen levels, while others appear mainly at higher nitrogen levels, indicating a clear association between location and nitrogen.
+
+### 10. How can we explain the difference in the p-values for location in the models fitted in question 6 and question 8?
+
+In question 6, the model alcohol ~ location estimates the marginal effect of location, so the p-values for location reflect all the variation in alcohol that is associated with location.
+In question 8, the model alcohol ~ nitrogen + location estimates the conditional effect of location after adjusting for nitrogen. Because nitrogen and location are associated, part of the variation in alcohol that was previously attributed to location is now explained by nitrogen. This changes the coefficient estimates and increases their standard errors, so the p-values for the location terms become larger and location is no longer clearly significant.
+
+### 11. Using the model specified in eq. (1), predict the mean alcohol yield for grain containing 1.9% and 2.7% nitrogen per kilogram.
+
+```{r}
+nd <- data.frame(nitrogen = c(1.9, 2.7))
+predict(fit, newdata = nd)
+```
+
+
+### 12. Estimate 95% confidence intervals for the mean alcohol yields predicted in question 11. What is the width of these intervals, and how can the difference in width be explained?
+
+```{r}
+nd <- data.frame(nitrogen = c(1.9, 2.7))
+predict(fit, newdata = nd, interval = "confidence", level=0.95)
+```
+
+Using the model in eq. (1), the predicted mean alcohol yields for grain with 1.9% and 2.7% nitrogen are approximately 436.5 and 406.9 liters per tonne, respectively.
+The 95% confidence intervals for these means are about [434.4, 438.6] and [399.9, 413.9]. The interval at 1.9% is much narrower because this nitrogen level is closer to the center of the observed data, where the predictions are more precise, whereas 2.7% is farther from the data cloud (more extrapolation), which increases the uncertainty and therefore the width of the confidence interval.
+
+
+### 3. Using the model specified in eq. (1), predict the actual alcohol yield for grain containing 1.9% and 2.7% nitrogen per kilogram. Also provide an assessment of the 95% prediction intervals for these values.
+
+```{r}
+nd <- data.frame(nitrogen = c(1.9, 2.7))
+predict(fit, newdata = nd, interval = "prediction", level=0.95)
+```
+
+
+
+
+
