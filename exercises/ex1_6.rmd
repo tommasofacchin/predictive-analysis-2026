@@ -1,0 +1,147 @@
+---
+title: "Block 1 ex 6"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+Consider the dataset `Davis` from the R package `carData`. The goal is to estimate the relationship between self‑reported weight (`repwt`) for men and women and measured weight (`weight`) for men and women.
+
+```{r}
+library(carData)
+data(Davis)
+head(Davis)
+```
+
+### 1. Estimate three models of increasing complexity: one in which the relationship is assumed to be the same for both sexes; one in which the intercept is allowed to differ between sexes; and finally one in which both the intercept and the slope are allowed to differ between sexes. 
+
+
+```{r}
+fit1 <- lm(repwt~weight, data=Davis)
+fit2 <- lm(repwt~weight+sex, data=Davis)
+fit3 <- lm(repwt~weight*sex, data=Davis)
+
+summary(fit1)$coefficient
+summary(fit2)$coefficient
+summary(fit3)$coefficient
+```
+
+```{r}
+par(mfrow = c(1, 3))  
+
+# Model 1
+plot(Davis$weight, Davis$repwt, pch = 16, col = "grey",
+     xlab = "Measured weight", ylab = "Reported weight",
+     main = "Model 1: repwt ~ weight")
+abline(fit1, col = "black", lwd = 2)
+
+# Model 2
+plot(Davis$weight, Davis$repwt, pch = 16,
+     col = ifelse(Davis$sex == "M", "blue", "red"),
+     xlab = "Measured weight", ylab = "Reported weight",
+     main = "Model 2: repwt ~ weight + sex")
+
+abline(a = coef(fit2)["(Intercept)"], 
+       b = coef(fit2)["weight"], col = "red", lwd = 2)      
+abline(a = coef(fit2)["(Intercept)"] + coef(fit2)["sexM"],
+       b = coef(fit2)["weight"], col = "blue", lwd = 2)     
+
+legend("topleft", legend = c("F", "M"),
+       col = c("red", "blue"), pch = 16, bty = "n")
+
+# Model 3
+plot(Davis$weight, Davis$repwt, pch = 16,
+     col = ifelse(Davis$sex == "M", "blue", "red"),
+     xlab = "Measured weight", ylab = "Reported weight",
+     main = "Model 3: repwt ~ weight * sex")
+
+abline(a = coef(fit3)["(Intercept)"], 
+       b = coef(fit3)["weight"], col = "red", lwd = 2)
+abline(a = coef(fit3)["(Intercept)"] + coef(fit3)["sexM"],
+       b = coef(fit3)["weight"] + coef(fit3)["weight:sexM"],
+       col = "blue", lwd = 2)
+
+legend("topleft", legend = c("F", "M"),
+       col = c("red", "blue"), pch = 16, bty = "n")
+
+```
+
+
+---
+
+### 2. Write the three models from point 1 explicitly in mathematical form, and compare their goodness of fit, indicating which model is chosen as the final model.  
+
+Model 1: same line for both sexes
+\[
+\text{repwt}_i = \beta_0 + \beta_1 \,\text{weight}_i + \varepsilon_i
+\]
+
+Model 2: different intercepts, same slope
+\[
+\text{repwt}_i = \beta_0 + \beta_1 \,\text{weight}_i + \beta_2 \, I(\text{sex}_i = M) + \varepsilon_i
+\]
+
+Model 3: different intercepts and slopes
+\[
+\text{repwt}_i = \beta_0 + \beta_1 \,\text{weight}_i + \beta_2 \, I(\text{sex}_i = M) 
++ \beta_3 \,\text{weight}_i \, I(\text{sex}_i = M) + \varepsilon_i
+\]
+
+
+```{r}
+summary(fit1)$adj.r.squared
+summary(fit2)$adj.r.squared
+summary(fit3)$adj.r.squared
+
+anova(fit1, fit2, fit3)
+```
+
+The ANOVA table shows that adding sex (Model 2 vs Model 1: F = 132.35, p < 2.2e−16) and then adding the interaction weight·sex (Model 3 vs Model 2: F = 167.90, p < 2.2e−16) both produce highly significant reductions in residual sum of squares. Consistently, the adjusted R² increases from Model 1 to Model 2 and further to Model 3, so Model 3, which allows both intercept and slope to differ by sex, is chosen as the final model.
+
+---
+
+### 3. For the selected model, check whether the assumptions underlying linear regression are satisfied. In particular, comment on whether there are any data points that are especially influential on the estimates.
+
+
+```{r}
+par(mfrow = c(2, 2))
+plot(fit3)
+```
+
+For the final model, the Residuals vs Fitted and Scale–Location plots do not show strong systematic patterns, suggesting that the linearity and constant variance assumptions are reasonably satisfied. The Normal Q–Q plot indicates that residuals are approximately normal, with only moderate deviations in the tails. However, the Residuals vs Leverage plot with Cook’s distance highlights observation 12 (and, to a lesser extent, a few others) as having high leverage and relatively large Cook’s distance, meaning that these points are especially influential on the estimated regression coefficients and should be examined carefully.
+
+```{r}
+cd <- cooks.distance(fit3)
+thr <- 4 /  nrow(Davis)
+
+which(cd > thr)      
+
+idx_infl <- which(cd > thr)
+fit3_red <- lm(repwt ~ weight * sex, data = Davis[-idx_infl, ])
+
+summary(fit3)
+summary(fit3_red)
+
+par(mfrow = c(2, 2))
+plot(fit3_red)
+
+par(mfrow = c(1, 1))
+plot(Davis[-idx_infl, ]$weight, Davis[-idx_infl, ]$repwt, pch = 16,
+     col = ifelse(Davis[-idx_infl, ]$sex == "M", "blue", "red"),
+     xlab = "Measured weight", ylab = "Reported weight",
+     main = "Model 3: repwt ~ weight * sex")
+
+abline(a = coef(fit3_red)["(Intercept)"], 
+       b = coef(fit3_red)["weight"], col = "red", lwd = 2)
+abline(a = coef(fit3_red)["(Intercept)"] + coef(fit3_red)["sexM"],
+       b = coef(fit3_red)["weight"] + coef(fit3_red)["weight:sexM"],
+       col = "blue", lwd = 2)
+```
+
+Using Cook’s distance with the threshold 4/n, we identified observations 12, 17, 21, 29, 31, 50, 64, 115 and 130 as potentially influential. Refitting the model without these observations leads to markedly different estimates: the interaction term weight·sex, which was highly significant in the full sample, becomes non‑significant, and the two sex‑specific regression lines are now almost parallel. This shows that a small number of high‑leverage, influential points drive most of the apparent difference in slope between men and women. After removing them, the linear model fits the data more tightly (lower residual standard error, higher R²) and the substantive conclusion changes, so these observations should be carefully examined rather than automatically discarded.
+
+
+
+
+

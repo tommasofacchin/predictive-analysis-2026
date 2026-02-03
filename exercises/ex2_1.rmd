@@ -1,0 +1,125 @@
+---
+title: "Block 2 ex 1"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+
+
+Consider the dataset **wbca** from the **faraway** package. This dataset contains data from an oncological study aimed at determining whether a tumor is malignant or not using certain characteristics of cells extracted via a fine needle aspiration. See also `?faraway::wbca`.
+
+```{r}
+library(faraway)
+data(wbca)
+head(wbca)
+```
+
+---
+
+### 1. Perform an initial estimation where the variable **Class** (the variable indicating the tumor classification) depends on the variable **Thick**. Produce a plot showing how the probability that a tumor is benign depends on **Thick**. Also, create a 96% confidence interval for the parameter associated with the variable **Thick**.
+
+```{r}
+fit1 <- glm(Class~Thick, data = wbca, family=binomial())
+summary(fit1)
+
+
+thick_seq <- seq(min(wbca$Thick), max(wbca$Thick), length = 100)
+newdat <- data.frame(Thick = thick_seq)
+p_hat <- predict(fit1, newdata = newdat, type = "response")
+
+plot(wbca$Thick, wbca$Class, xlab = "Thick", ylab = "Class (0=malignant, 1=benign)")
+lines(thick_seq, p_hat, col = "red", lwd = 2)
+
+confint(fit1, parm = "Thick", level = 0.96)
+```
+
+---
+
+### 2. Estimate a model where **Class** depends on all other variables available in the dataset. Obtain the residual deviance of the model and check whether the model has any predictive value. Also verify whether the model has better predictive ability than the one in which only **Thick** is used as a predictor.
+
+```{r}
+fitAll <- glm(Class~., data = wbca, family=binomial())
+summary(fitAll)
+```
+
+In the full model the residual deviance is 89.46 on 671 degrees of freedom, which is much smaller than the null deviance (881.39), indicating that the model fits the data well and has substantial predictive power.
+
+```{r}
+anova(fit1, fitAll)
+```
+
+The analysis of deviance compares the model with only Thick to the full model and shows a reduction in residual deviance of 362.23 on 8 degrees of freedom, indicating that adding the other predictors leads to a highly significant improvement in model fit and predictive ability.
+
+---
+
+### 3. Use the **step** function to build a model that uses a subset of the available variables. Compare the models obtained when using **AIC** or **BIC** as criteria for selecting the subset of predictor variables to include in the model. If there are any differences between the models identified using the two criteria, explain the reason for such differences.
+
+```{r}
+n <- nrow(wbca)
+lwr <- glm(Class~1, data = wbca, family=binomial())
+upr <- glm(Class~., data = wbca, family=binomial())
+
+fit_AIC <- step(object = lwr, 
+     scope = list(lower = lwr,
+                  upper = upr), 
+     direction = "forward",
+     k = 2
+) 
+
+fit_BIC <- step(object = lwr, 
+     scope = list(lower = lwr,
+                  upper = upr), 
+     direction = "forward",
+     k = log(n)
+) 
+
+summary(fit_AIC)
+summary(fit_BIC)
+```
+
+
+Using forward stepwise selection with AIC (k = 2) the selected model includes the predictors USize, BNucl, Thick, Chrom, Adhes, NNucl and Mitos, with a residual deviance of 90.92 on 673 degrees of freedom (AIC = 106.92). In contrast, using BIC (k = log n) the selected model is more parsimonious and excludes Mitos, retaining only USize, BNucl, Thick, Chrom, Adhes and NNucl, with a slightly larger residual deviance of 95.04 on 674 degrees of freedom (AIC = 109.04). This difference arises because BIC applies a stronger penalty on model complexity than AIC, so it tends to prefer simpler models with fewer predictors even at the cost of a small loss in fit.
+
+
+---
+
+### 4. Using the model selected via **AIC**, estimate the probability that two patients with the characteristics indicated in the dataset **nd** have a benign tumor (i.e., a tumor with `Class = 1`). Provide a point estimate and a confidence interval estimate of this probability using a 96% confidence level. Comment on the width of the identified intervals.
+
+```{r}
+nd <- data.frame(
+  Patient = c("A", "B"),
+  Adhes = c(1, 3), BNucl = c(1, 3.5), Chrom = c(3, 3.5), Epith = c(2, 3.5),
+  Mitos = c(1, 1.6), NNucl = c(1, 2.8), Thick = c(4, 4.43), UShap = c(1, 3.2),
+  USize = c(1, 3.14)
+)
+```
+
+```{r}
+pred_link <- predict(fit_AIC, newdata = nd, type = "link", se.fit = TRUE)
+
+fit  <- pred_link$fit          
+se   <- pred_link$se.fit
+
+alpha <- 0.04                  
+z     <- qnorm(1 - alpha/2)    
+
+lower_link <- fit - z * se
+upper_link <- fit + z * se
+
+p_hat   <- plogis(fit)         
+lower_p <- plogis(lower_link) 
+upper_p <- plogis(upper_link) 
+
+cbind(Patient = nd$Patient,
+      p_hat, lower_p, upper_p)
+```
+
+Using the AIC‑selected model, the estimated probability of having a benign tumor is about 0.99 for patient A and 0.72 for patient B. The 96% confidence interval for patient A is very narrow [0.97, 1.00], indicating high precision and strong evidence that the probability of benign tumor is extremely large. For patient B the interval [0.56, 0.84] is wider, reflecting greater uncertainty in the prediction, although the probability of a benign tumor is still clearly above 0.5.
+
+
+
+
+
+

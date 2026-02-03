@@ -1,0 +1,122 @@
+---
+title: "Block 1 ex 7"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+Consider the following regression model:
+
+\[
+Y_i =
+\begin{cases}
+\beta_1 + \varepsilon_i, & i = 1, \ldots, 5 \\
+\beta_1 + \beta_2 (i - 5) + \varepsilon_i, & i = 6, \ldots, 10
+\end{cases}
+\]
+
+where \(\varepsilon_i\), \(i = 1, \ldots, 10\) are independent random variables with distribution \(N(0,\sigma^2)\).
+
+### 1. State whether the assumptions usually adopted in a Gaussian linear regression model (linearity of the relationship, normality and homoscedasticity of the errors, independence of the observations) are satisfied by the model above.
+
+All four standard assumptions of the Gaussian linear regression model are satisfied: the model is linear in the parameters (piecewise linear in i), the errors $\varepsilon_i$ are independent, normally distributed with mean 0 and common variance $\sigma^2$, so linearity, normality, homoscedasticity and independence all hold.
+
+---
+
+### 2. The model can be written in matrix form \(Y = X \beta + \varepsilon\). Write down the explicit expression of the design matrix \(X\).
+
+The vector of parameters is \(\beta = (\beta_1,\beta_2)^\top\).  
+From the piecewise definition:
+
+- For \(i = 1,\dots,5\): \(Y_i = \beta_1 + \varepsilon_i\) ⇒ row \((1, 0)\).  
+- For \(i = 6,\dots,10\): \(Y_i = \beta_1 + \beta_2(i-5) + \varepsilon_i\) ⇒ row \((1, i-5)\).
+
+So the matrix \(X\) (10×2) is:
+
+\[
+X =
+\begin{pmatrix}
+1 & 0 \\
+1 & 0 \\
+1 & 0 \\
+1 & 0 \\
+1 & 0 \\
+1 & 1 \\
+1 & 2 \\
+1 & 3 \\
+1 & 4 \\
+1 & 5
+\end{pmatrix}
+\]
+
+---
+
+### 3. Argue what the distribution of the maximum likelihood estimator of \(\beta\) should be.
+
+Since this is a Gaussian linear model with design matrix \(X\) and errors \(\varepsilon \sim N(0,\sigma^2 I)\), the maximum likelihood estimator of \(\beta\) is
+
+\[
+\hat\beta = (X^\top X)^{-1} X^\top Y.
+\]
+
+Because \(Y \sim N(X\beta,\sigma^2 I)\), any linear transformation of \(Y\) is still normal; therefore
+
+\[
+\hat\beta \sim N\!\big(\beta,\; \sigma^2 (X^\top X)^{-1}\big).
+\]
+
+So the MLE of \(\beta\) has a multivariate normal distribution with mean equal to the true parameter vector \(\beta\) and covariance matrix \(\sigma^2 (X^\top X)^{-1}\).
+
+---
+
+### 4. Suppose that the estimates \((\hat\beta_1, \hat\beta_2, \hat\sigma) = (2.86, 0.1, 0.86)\) have been obtained. Derive the exact 0.90 confidence intervals for \(\beta_1\) and \(\beta_2\).
+
+To obtain the exact 90% confidence intervals we use the usual t–based formula for a Gaussian linear model.
+
+From point 2 we have
+
+\[
+(X^\top X)^{-1}
+= \frac{1}{425}
+\begin{pmatrix}
+55 & -15 \\
+-15 & 10
+\end{pmatrix}.
+\]
+
+Hence
+
+\[
+\operatorname{Var}(\hat\beta_1)=\sigma^2 \frac{55}{425},\qquad
+\operatorname{Var}(\hat\beta_2)=\sigma^2 \frac{10}{425},
+\]
+
+so the standard errors are
+
+\[
+\operatorname{se}(\hat\beta_1)=\hat\sigma\sqrt{\frac{55}{425}},
+\qquad
+\operatorname{se}(\hat\beta_2)=\hat\sigma\sqrt{\frac{10}{425}},
+\]
+
+with \(\hat\sigma=0.86\) and \(n-p = 10-2 = 8\) degrees of freedom.
+
+Let \(t_{0.95,8}\) be the 95th percentile of a t distribution with 8 degrees of freedom.  
+The exact 90% confidence intervals are then
+
+\[
+\beta_1 \in \hat\beta_1 \pm t_{0.95,8}\,\operatorname{se}(\hat\beta_1)
+= 2.86 \pm t_{0.95,8}\, \hat\sigma\sqrt{\frac{55}{425}},
+\]
+
+\[
+\beta_2 \in \hat\beta_2 \pm t_{0.95,8}\,\operatorname{se}(\hat\beta_2)
+= 0.10 \pm t_{0.95,8}\, \hat\sigma\sqrt{\frac{10}{425}}.
+\]
+
+---
+
+### 5. Which additional information would be needed in order to compute \(R^2\)?
+
+To compute R^2 we would additionally need the total sum of squares (or the sample variance and mean of the observed $Y_i$, i.e. the actual data values), in order to calculate $R^2 = 1 - \text{RSS}/\text{TSS}$.
