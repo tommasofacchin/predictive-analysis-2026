@@ -1,0 +1,104 @@
+---
+title: "Block 1 ex 5"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+The variable X represents the number of hours per week that students devote to studying a subject. The variable Y is a standardized performance measure for the students’ school year in that subject: higher values indicate better performance. The variable Z indicates the year in which each student is enrolled.
+
+```{r}
+source("../Datasets/ex5.R")
+head(ex5)
+```
+
+
+### 1. Estimate the relationship between X and Y: how can the estimated value of the slope coefficient be interpreted?  
+
+```{r}
+fit1 <- lm(Y~X, data=ex5)
+summary(fit1)
+```
+
+The estimated slope coefficient is `r summary(fit1)$coefficients["X", 1]`, meaning that for each additional unit increase in X, the expected value of Y decreases on average by about 0.76 units, indicating a negative linear association between study hours X and performance Y in this sample.
+
+
+```{r}
+plot(ex5$X, ex5$Y)
+```
+
+---
+
+### 2. Perform a hypothesis test for the significance of the slope coefficient: specify the null and alternative hypotheses.  
+
+\[ 
+H_0: \beta_{x} = 0
+\]
+\[ 
+H_1: \beta_{x} \neq 0
+\]
+
+The p-value is < 2e-16, so we reject the null hypothesis and conclude that the slope coefficient for X is highly statistically significant, providing strong evidence of a linear association between X and Y.
+
+---
+
+### 3. Perform a hypothesis test on the slope coefficient β₁ where the null hypothesis is \(H_0 : \beta_1 < 0\). What is the alternative hypothesis? How does the p‑value change compared to the p‑value computed in point (ii)?  
+
+\[ 
+H_0: \beta_{x} < 0
+\]
+\[ 
+H_1: \beta_{x} \ge 0
+\]
+
+Since the estimated slope is negative, the evidence supports H0 rather than H1, and the corresponding one-sided p-value is close to 1. Hence, compared to the two-sided p-value in (ii), which was essentially 0, this one-sided p-value becomes very large and we do not reject H0 in this directional test.
+
+---
+
+### 4. Now estimate a multiple linear model in which both X and Z are included as predictors: what is now the estimate of the slope coefficient associated with X? Comment on what might be the cause of the change in the estimate.  
+
+
+```{r}
+fit2 <- lm(Y~X+Z, data=ex5)
+summary(fit2)
+```
+
+The estimated slope coefficient for X is now `r summary(fit2)$coefficients["X", 1]`. This means that, after controlling for the year of enrollment Z, each additional unit increase in X is associated with an average increase of about 0.78 units in the expected value of Y.
+
+The sign and magnitude of the slope for X have changed dramatically compared to the simple regression (from about -0.76 to +0.78). This suggests that Z acts as a confounding variable: when we ignore Z, the marginal relationship between X and Y is negative, but once we adjust for differences between years (Z) the conditional relationship becomes positive. In other words, part of the negative association in the simple model is explained by systematic differences in both study hours X and performance Y across years Z (a situation related to Simpson’s paradox).
+
+---
+
+### 5. Produce a graphical representation that illustrates the fitted values of \(E[Y]\) obtained in the two regression models estimated so far.  
+
+```{r}
+
+ord <- order(ex5$X)
+x_ord <- ex5$X[ord]
+
+fit1_ord <- predict(fit1, newdata = data.frame(X = x_ord))
+
+fit2_ord <- predict(fit2)[ord]
+
+plot(ex5$X, ex5$Y, pch = 16, col = "grey",
+     xlab = "X", ylab = "Y",
+     main = "Fitted values E[Y] from Model 1 and Model 2")
+
+lines(x_ord, fit1_ord, col = "black", lwd = 2)
+lines(x_ord, fit2_ord, col = "red", lwd = 2, lty = 2)
+
+legend("topleft",
+       legend = c("Model 1: Y ~ X", "Model 2: Y ~ X + Z"),
+       col = c("black", "red"), lwd = 2, lty = c(1, 2), bty = "n")
+
+```
+
+The black line shows the fitted values E[Y|X] from the simple model Y \sim X, which has a negative slope. The red dashed lines show the fitted values E[Y|X,Z] from the multiple model Y \sim X + Z: within each year Z the fitted relationship between X and Y is positive, highlighting how adjusting for Z reverses the apparent direction of the effect of X.
+
+---
+
+### 6. Is it correct to use variable Z as a numeric variable? If not, what change could be made to the variable in R? What implications does this have for the form of the fitted model (for example, on the number of parameters estimated)?  
+No, it is not appropriate to use Z as a numeric variable, because Z represents the school year (a categorical variable) rather than a quantitative scale with meaningful distances between values. In R, Z should be converted to a factor, for example with `ex5$Z <- as.factor(ex5$Z)`, and then included in the model as `lm(Y ~ X + Z, data = ex5)`. Treating Z as a factor implies estimating a separate mean level of Y for each year (relative to a reference year) and therefore increases the number of parameters: if Z has k levels, the model includes k−1 additional coefficients instead of a single slope for Z.
+
+

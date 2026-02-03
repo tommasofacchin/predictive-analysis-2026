@@ -1,0 +1,117 @@
+---
+title: "Block 1 ex 4"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+
+```{r}
+library(faraway)
+data(prostate)
+
+head(prostate)
+```
+
+--- 
+
+### 1. Consider a multiple linear regression model in which all the variables in the dataset are used as predictors (Model 1). Estimate the model and, using the summary function (or equivalent), find the value of the F‑statistic for the overall significance of the model. Interpret the value of this test statistic.
+
+```{r}
+fitAll <- lm(lpsa~., data = prostate)
+summary(fitAll)
+
+summary(fitAll)$fstatistic[1]
+```
+
+The overall F‑statistic is `r summary(fitAll)$fstatistic[1]`, with p‑value < 2.2e‑16, indicating that Model 1 as a whole is highly significant and that at least one predictor contributes to explaining lpsa beyond a model with only the intercept.
+
+--- 
+
+### 2. Find the point estimate of the regression coefficient associated with the variable age in Model 1. How can this coefficient be interpreted? Produce a scatter plot of age versus lpsa. How can the regression coefficient identified in Model 1 be interpreted in light of this plot?
+
+```{r}
+summary(fitAll)$coefficients["age", ]
+
+plot(prostate$age, prostate$lpsa, xlab = "age", ylab = "lpsa")
+```
+
+The estimated coefficient for age in Model 1 is `r summary(fitAll)$coefficients["age", 1]`, indicating a small negative partial effect of age on `lpsa` when controlling for the other clinical measures; the scattered pattern in the age–lpsa plot suggests only a weak marginal association, which is consistent with the relatively small magnitude and borderline significance (p ≈ `r summary(fitAll)$coefficients["age", 4]`) of this coefficient.
+
+--- 
+
+### 3. Find the 90% and 99% confidence intervals for the regression coefficient associated with the variable age in Model 1. How can these two intervals be interpreted? What can you deduce from these confidence intervals about the p‑value of the variable age in Model 1?
+
+```{r}
+confint(fitAll, level = 0.90)["age", ]
+confint(fitAll, level = 0.99)["age", ]
+```
+
+The 90% CI is entirely below 0, so at the 10% significance level you would say age has a statistically significant negative effect on lpsa.
+
+The 99% CI includes 0, so at the 1% level you would say the effect of age is not statistically significant.
+
+From these intervals we can deduce that the p‑value for age lies between 0.01 and 0.10, which is consistent with a borderline but not strongly significant effect.
+
+--- 
+
+### 4. Estimate confidence intervals for the value of lpsa for two patients with the following characteristics:
+```{r}
+nd <- prostate[1,-9] ## to ensure correct names
+nd[1,] <- c(1.45, 3.62,65,0.3,0,-0.8,7,15)
+nd[2,] <- c(4,6.2,83,2.33,1,2.96,9,100)
+rownames(nd) <- c("Patient A", "Patient B")
+nd
+```
+
+```{r}
+pred1 <- predict(fitAll, interval = "confidence", newdata = nd)
+pred1
+```
+
+
+--- 
+
+### 5. Now estimate a new model, Model 2, in which only those predictors whose significance test in Model 1 has a p‑value smaller than 0.05 are included.
+
+```{r}
+fit2 <- lm(lpsa~lcavol+lweight+svi, data=prostate)
+summary(fit2)
+```
+
+
+--- 
+
+### 6. Use this new model to estimate the values for patients A and B. Comment on the width of the confidence intervals obtained in Model 1 and Model 2.
+
+```{r}
+pred2 <- predict(fit2, interval = "confidence", newdata = nd)
+pred2
+```
+
+For the patient A the confidence intervals are [`r pred1["Patient A", 2]`, `r pred1["Patient A", 3]`] and [`r pred2["Patient A", 2]`, `r pred2["Patient A", 3]`] 
+
+For the patient B the confidence intervals are [`r pred1["Patient B", 2]`, `r pred1["Patient B", 3]`] and [`r pred2["Patient B", 2]`, `r pred2["Patient B", 3]`]
+
+Model 2 yields slightly narrower intervals but overall very similar precision to Model 1.
+
+--- 
+
+### 7. Test the significance of Model 2 against Model 1, explicitly stating the null and alternative hypotheses under consideration.
+
+```{r}
+anova(fit2, fitAll)
+```
+\[ 
+H_0: \beta_{age} = \beta_{lbph} = \beta_{lcp} = \beta_{gleason} = \beta_{pgg45} = 0
+\]
+\[
+H_1: \text{At least one of } \beta_{age}, \beta_{lbph}, \beta_{lcp}, \beta_{gleason}, \beta_{pgg45} \neq 0
+\]
+
+The p‑value is 0.2167, so we cannot reject the null hypothesis; therefore Model 2 is not significantly worse than Model 1, and the additional predictors (age, lbph, lcp, gleason, pgg45) do not provide a statistically significant improvement in fit.
+
+
+
+
