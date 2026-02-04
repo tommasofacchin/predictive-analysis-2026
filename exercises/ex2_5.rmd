@@ -1,0 +1,93 @@
+---
+title: "Block 2 ex 5"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+Consider the dataset contained in the file bchem_phd.csv. The data in the Biochemists dataframe (Long, 1990; Jackman, 2017) were collected from individuals who obtained a PhD in Biochemistry between 1950 and 1967 at universities in the United States. The purpose of the analysis was to evaluate gender differences in scientific productivity.
+The response variable is the number of scientific articles (art) published in journals indexed by Chemical Abstracts during the three years surrounding the completion of the PhD. The available explanatory variables are: gender (fem, with values Men and Women), marital status (mar, with values Married and Single), number of children aged five or under (kid5), a measure of the scientific prestige of the department (phd, ranging from 0 to 5), and the number of scientific articles published by the supervisor (ment) in the same three-year period to which art refers.
+
+```{r}
+dex <- read.table("../Datasets/bchem_phd.csv", sep=",", header = TRUE)
+head(dex)
+```
+
+---
+
+
+### 1. Consider **art** as the response variable. Would it be possible to use a multiple regression model to model the response variable **art**? What advantages or disadvantages would using a multiple regression model to model the response variable **art** involve?  
+
+```{r}
+fit <- glm(art~., data=dex, family=poisson)
+summary(fit)
+```
+
+Using a Poisson regression instead of a standard multiple linear regression is appropriate here because the response variable art is a non‑negative count; a linear model would ignore the discrete, skewed nature of the data, violate normality and homoskedasticity assumptions, and could even produce negative fitted values, whereas the Poisson model respects these features and provides more reliable inference.
+
+---
+
+### 2. What modifications could be made to a multiple regression model to overcome some of the possible disadvantages identified in point 1?  
+
+One way to overcome the disadvantages of using a standard multiple regression with a count response like **art** is to replace it with a generalized linear model for counts (for example, a Poisson or negative binomial GLM with a log link), which respects the discrete, non‑negative nature of the data and accounts for the typical mean–variance relationship in count outcomes.
+
+---
+
+### 3. Use a generalized linear model (GLM), assuming that the response variable **art** follows a Poisson distribution, to investigate whether the number of published articles is influenced by the scientific prestige index of the department, **phd**.  
+
+```{r}
+fit2 <- glm(art~phd, data=dex, family=poisson())
+summary(fit2)
+```
+
+---
+
+### 4. Find a subset of optimal predictors to use in a generalized linear model similar to the one estimated in point 3.  
+
+```{r}
+fitN <- glm(art~1, data=dex, family=poisson())
+fitAll <- glm(art~., data=dex, family=poisson())
+
+fitFinal <- step(object = fitN, 
+     scope = list(lower = fitN, upper = fitAll), 
+     direction = "forward",
+     k = 2 # AIC, log(nrow(dex)) for BIC
+)
+```
+
+---
+
+### 5. Produce a point estimate of the expected value of the number of articles for four people with a PhD in Biochemistry with the following characteristics:  
+
+```{r}
+nd <- data.frame(
+  fem = c("Men","Women","Men","Women"),
+  mar = c("Married","Married","Single","Single"),
+  kid5 = c(1,1,1,1),
+  phd = c(3,3,3,3),
+  ment = c(8,8,8,8)
+)
+rownames(nd) <- c("PHD A", "PHD B", "PHD C", "PHD D")
+```
+
+Comment on the estimates obtained, explaining how the estimated values of the regression coefficients affect the estimated values.  
+
+```{r}
+predict(fitFinal, newdata=nd, type="response")
+```
+
+---
+
+### 6. Produce an interval estimate, using a 90% confidence level, for the expected value of the number of articles published by the individuals specified in the previous point.
+
+```{r}
+preds <- predict(fitFinal, newdata=nd, type="link", se.fit=TRUE)
+
+cbind(poisson()$linkinv(preds$fit + qnorm(.05) * preds$se.fit),
+      poisson()$linkinv(preds$fit + qnorm(.95) * preds$se.fit))
+
+```
+
+
+

@@ -1,0 +1,102 @@
+---
+title: "Block 2 ex 2"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+
+For unknown reasons, dairy cows sometimes become recumbent, meaning they lie down and are unable to rise. This condition is known as **Downer Cow Syndrome**, and these cows often suffer from a severe illness that can lead to death. The dataset **'downer.csv'** contains data from a study on blood samples collected from over 400 downer cows examined at the **Ruakura New Zealand Animal Health Laboratory** during the period **1983–1984**.  
+Various blood tests were performed, and for many of the animals, the outcome (survived, died, or euthanized) was recorded. The goal is to determine whether **survival can be predicted from blood measurements**. The data were collected from veterinary records, and not all variables were recorded for every cow.  
+
+The dataset (taken from *Applied Linear Regression* by S. Weisberg) contains the following variables:  
+- **calving**: a factor with levels *before* and *after*  
+- **daysrec**: Days recumbent  
+- **ck**: Serum creatine phosphokinase (U/l at 30°C)  
+- **ast**: Serum aspartate aminotransferase (U/l at 30°C)  
+- **urea**: Serum urea (mmol/l)  
+- **pcv**: Packed Cell Volume (Hematocrit)  
+- **inflat**: Inflammation (0 = no, 1 = yes)  
+- **myopathy**: Muscle disorder, a factor with levels *present* and *absent*  
+- **outcome**: a factor with levels *died* and *survived*  
+
+
+```{r}
+downer <- read.table("../Datasets/Downer.csv", sep=",", header = TRUE)
+head(downer)
+table(downer$outcome, useNA = "ifany")
+```
+
+### 1. Compute the sample proportion of cows that survive and derive the corresponding log-odds ratio value. Compare this value with the estimate of the intercept obtained from a GLM with binomial distribution in which no predictors are used. Use the level survived as the level whose probability of occurrence is of interest.
+
+```{r}
+p_hat <- mean(downer$outcome == "survived")
+p_hat
+
+logit_p <- log(p_hat / (1 - p_hat))
+logit_p
+
+downer$out <- I(downer$outcome == "survived")
+
+fit0 <- glm(out ~ 1, family = binomial, data = downer)
+summary(fit0)
+coef(fit0)[1]
+
+```
+
+
+
+### 2. Estimate a GLM for the variable outcome using ast as a predictor. Plot/visualize the relationship between the variables, also showing the estimated probability that a cow survives as a function of its ast level.
+
+```{r}
+fit1 <- glm(out ~ ast, family = binomial, data = downer)
+summary(fit1)
+
+ast_seq <- seq(min(downer$ast, na.rm = TRUE),
+               max(downer$ast, na.rm = TRUE),
+               length.out = 200)
+
+newdat <- data.frame(ast = ast_seq)
+
+newdat$phat <- predict(fit1, newdata = newdat, type = "response")
+
+plot(downer$ast, jitter(as.numeric(downer$out), amount=0.02),
+     xlab = "ast",
+     ylab = "Survival (0 = died, 1 = survived)",
+     pch = 20, col = rgb(0, 0, 0, 0.3))
+
+lines(newdat$ast, newdat$phat,
+      col = "red", lwd = 2)
+```
+
+### 3. Now estimate a model in which the only predictor used is urea. Compare the goodness of fit of this model with that of the model estimated in point 2.
+
+```{r}
+fit2 <- glm(out ~ urea, family = binomial, data = downer)
+summary(fit2)
+```
+
+Both models show a significant negative effect of the predictor (higher values -> lower survival probability), but the model with `urea` has a clearly smaller residual deviance and AIC, so—among the cows with non-missing `urea`—it provides a **better** fit to the data than the model with `ast`.
+
+### 4.  Using the model identified as best in point 3, estimate the probability that the cows with characteristics given in the dataset nd survive, and provide a 92% confidence interval for the estimated probability.
+
+```{r}
+nd <- data.frame(ast = c(500, 1400,2000),
+urea = c(5, 20, 30))
+
+pred <- predict(fit2, newdata=nd, type = "link", se.fit = TRUE)
+
+fit <- pred$fit
+se.fit <- pred$se.fit
+
+cbind(binomial()$linkinv(fit + qnorm(.04) * se.fit),
+      binomial()$linkinv(fit + qnorm(.96) * se.fit))
+
+```
+
+
+
+
+
+

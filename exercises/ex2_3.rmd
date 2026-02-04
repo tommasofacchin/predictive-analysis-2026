@@ -1,0 +1,100 @@
+---
+title: "Block 2 ex 3"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+
+Male inhabitants of the Greek island of Kalythos suffer from a congenital eye disease, whose effects become more pronounced at older ages. In a sample of male islanders of different ages, the number of blind individuals was recorded. The code creates a dataset for the observed data by defining one variable for the total number of men sampled at each age and another variable for the number of blind men identified in the sample.
+
+```{r}
+Kalythos <- data.frame(age = c(20,35,45,55,70), 
+                       total_sample = c(50,50,50,50,50),
+                       n_blind = c(6,17,26,37,44))
+```
+
+
+### 1. Estimate a model that investigates whether the proportion of blind people on the island changes as a function of individuals’ age. Use the canonical link function.
+
+```{r}
+Kalythos$Y <- cbind(Kalythos$n_blind,
+                    Kalythos$total_sample - Kalythos$n_blind)
+
+fit <- glm(Y ~ age, family = binomial, data = Kalythos)
+summary(fit)
+```
+
+---
+
+### 2. Create a plot showing the relationship estimated by the model from the previous point, and comment on how well the fitted model matches the collected data.
+
+```{r}
+Kalythos$p_obs <- Kalythos$n_blind / Kalythos$total_sample
+
+age_seq <- seq(min(Kalythos$age), max(Kalythos$age), length.out = 200)
+
+pred <- predict(fit, newdata = data.frame(age = age_seq),
+                type = "response") 
+
+plot(Kalythos$age, Kalythos$p_obs,
+     xlab = "Age",
+     ylab = "Proportion blind",
+     pch = 16)
+
+lines(age_seq, pred, col = "red", lwd = 2)
+```
+
+
+---
+
+### 3. Compute a confidence interval for the probability that an individual on the island is blind at ages 20, 50, and 70. Use a 90% confidence level.
+
+```{r}
+nd <- data.frame(age = c(20, 50, 70))
+
+pred <- predict(fit, newdata=nd, type="link", se.fit=TRUE)
+
+cbind(binomial()$linkinv(pred$fit + qnorm(.05) * pred$se.fit),
+      binomial()$linkinv(pred$fit + qnorm(.95) * pred$se.fit))
+
+```
+
+---
+
+### 4. Perform a test to check whether the value of the coefficient associated with the predictor age is equal to 0.1. Use a significance level of 10%.
+
+```{r}
+summary(fit)$coef
+confint(fit, parm = "age", level = 0.90)
+``` 
+
+Since 0.1 is **outside** of the interval, at significance of 10% we reject the null hypothesis \(H_0:\ \beta_{\text{age}} = 0.1\).
+
+---
+
+### 5. Briefly outline the theoretical basis used to derive the test carried out in the previous point, and comment on how appropriate this basis is for the application in point 4.
+
+The test in point 4 relies on the fact that, in GLMs, the maximum likelihood estimator of a coefficient is approximately normally distributed around the true value, with variance estimated from the model; this large-sample normal approximation allows us to build confidence intervals and to test hypotheses about \(\beta_{\text{age}}\) by comparing the estimated coefficient to the hypothesized value using its standard error, and in this case the sample size and excellent model fit suggest that these approximations are appropriate and the test result is trustworthy.
+
+---
+
+### 6. Use the two variables specified below as predictors in a model that investigates how the proportion of blind people on the island changes as a function of individuals’ age. Compare the estimated coefficient values: what interpretation can be given to the estimate of the intercept in the different models?
+
+
+```{r}
+Kalythos$age_m20 <- Kalythos$age-20
+Kalythos$age_m45 <- Kalythos$age-45
+
+
+fit2 <- glm(Y ~ age_m20, family = binomial, data = Kalythos)
+summary(fit2)
+
+fit3 <- glm(Y ~ age_m45, family = binomial, data = Kalythos)
+summary(fit3)
+```
+
+By centering age at 20 or 45 in separate models, the slope remains the same but the intercept changes its meaning: in the model with `age_m20` it represents the log-odds (and thus the probability) of being blind at age 20, while in the model with `age_m45` it represents the log-odds of being blind at age 45, making the intercept directly interpretable as the baseline risk at the chosen reference age.
+
+

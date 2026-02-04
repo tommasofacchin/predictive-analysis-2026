@@ -1,0 +1,135 @@
+---
+title: "Block 2 ex 4"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+In an experiment on child development, some children were asked to build a tower as tall as possible using blocks: in a first trial the children were given cubes, while in a second trial they were provided with cylinders. Each child was tested twice (so each child built four towers). Information about the variables collected during the experiment can be found in the dataset `blocks` in the R package GLMsData (`data(blocks, package = "GLMsData")`).
+
+```{r}
+library(GLMsData)
+data(blocks)
+head(blocks)
+```
+
+---
+
+### 1. Produce a plot that investigates whether there is a relationship between the number of blocks used (Number) and the children’s age (Age).
+
+```{r}
+plot(blocks$Age, blocks$Number,
+     xlab = "Age",
+     ylab = "Number of blocks")
+```
+
+
+---
+
+### 2. Produce a plot that investigates whether the relationship between the number of blocks used (Number) and the children’s age (Age) differs depending on whether the blocks given to the children are cubes or cylinders (Shape).
+
+
+```{r}
+cols <- c("Cube" = "blue", "Cylinder" = "red")
+
+plot(blocks$Age, blocks$Number,
+     col = cols[blocks$Shape],
+     pch = 16,
+     xlab = "Age",
+     ylab = "Number of blocks")
+
+legend("topleft",
+       legend = c("Cube", "Cylinder"),
+       col    = c("blue", "red"),
+       pch    = 16,
+       bty    = "n")
+
+```
+
+---
+
+### 3. Use a GLM with the canonical link function to estimate a model in which the number of blocks used depends on the child’s age. Explain how the estimated regression coefficients can be interpreted. Construct a 98% confidence interval for the coefficient associated with Age.
+
+```{r}
+fit <- glm(Number~Age, data=blocks, family=poisson())
+summary(fit)
+confint(fit, parm = "Age", level = 0.98)
+```
+
+In this Poisson GLM, the intercept represents the log of the expected number of blocks for a child of age 0, while the Age coefficient \hat\beta_1 = 0.1415 means that each additional year multiplies the expected number of blocks by \exp(0.1415) \approx 1.15, i.e. about a 15% increase, and the 98% confidence interval for this multiplicative effect per year is obtained by exponentiating the bounds of the confidence interval on the log scale, \exp(0.0185) \approx 1.02 and \exp(0.2671) \approx 1.31, showing that the expected number of blocks increases by roughly between 2% and 31% for each extra year of age.
+
+---
+
+### 4. Construct a confidence interval for the number of blocks used by a child aged 4 and 9 years; comment on the reliability of these intervals.
+
+```{r}
+nd <- data.frame("Age" = c(4, 9))
+
+pred = predict(fit, newdata=nd, type="link", se.fit=TRUE)
+
+cbind(poisson()$linkinv(pred$fit + qnorm(.01) * pred$se.fit),
+      poisson()$linkinv(pred$fit + qnorm(.99) * pred$se.fit))
+```
+
+These intervals suggest that the prediction for a 4‑year‑old child is reasonably precise, whereas the very wide interval for a 9‑year‑old indicates much greater uncertainty and therefore a less reliable estimate of the expected number of blocks.
+
+---
+
+### 5. Use a GLM with the canonical link function to estimate a model in which the number of blocks used depends on the child’s age (Age) and on the type of block provided (Shape). Check whether it is necessary to include an interaction between the two variables in the model.
+
+```{r}
+fit2 <- glm(Number~Age+Shape, data=blocks, family=poisson())
+summary(fit2)
+
+fit3 <- glm(Number~Age*Shape, data=blocks, family=poisson())
+summary(fit3)
+```
+
+There is no need to include the interaction between Age and Shape in the model. In the model with interaction, the coefficient for Age:ShapeCylinder is not statistically significant (p = 0.448), and the AIC increases slightly (from 415.14 to 416.56), indicating that adding the interaction does not improve model fit enough to justify the extra complexity. Therefore, the simpler additive model `Number ~ Age + Shape` is adequate and preferred.
+
+---
+
+### 6. Create a plot that shows the estimates obtained for the expected value of the response variable using the model chosen in point 5.
+
+```{r}
+age_seq <- seq(min(blocks$Age), max(blocks$Age), length.out = 100)
+
+new_cube <- data.frame(
+  Age   = age_seq,
+  Shape = factor("Cube",     levels = levels(blocks$Shape))
+)
+new_cyl <- data.frame(
+  Age   = age_seq,
+  Shape = factor("Cylinder", levels = levels(blocks$Shape))
+)
+
+mu_cube <- predict(fit2, newdata = new_cube, type = "response")
+mu_cyl  <- predict(fit2, newdata = new_cyl,  type = "response")
+
+range(mu_cube, mu_cyl)  
+
+yr <- range(c(mu_cube, mu_cyl), finite = TRUE)
+
+plot(age_seq, mu_cube, type = "l",
+     ylim = yr,
+     xlab = "Age (years)",
+     ylab = "Expected number of blocks",
+     col = "blue", lwd = 2)
+
+lines(age_seq, mu_cyl, col = "red", lwd = 2)
+
+legend("topleft",
+       legend = c("Cube", "Cylinder"),
+       col = c("blue", "red"),
+       lwd = 2, bty = "n")
+
+```
+
+
+---
+
+### 7. State the assumptions underlying the model estimated in point 5, and comment on the validity of these assumptions for the dataset under study.
+
+The Poisson GLM fitted in point 5 assumes that the response is a count with a Poisson distribution, that observations are independent, that the conditional variance equals the conditional mean, and that the log of the expected number of blocks is a linear function of Age and Shape; in this dataset these assumptions appear broadly reasonable because Number is indeed a count, the design suggests approximate independence between observations, the residual deviance is not indicative of strong overdispersion, and the fitted values as a function of Age and Shape do not show clear patterns of misspecification, so the model seems adequate for describing the relationship between children’s age, block shape, and the expected number of blocks used.
+
