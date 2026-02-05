@@ -1,0 +1,96 @@
+---
+title: "Block 2 ex 6"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+Consider a study on the behavior of customers of an online shop and on the relationship between sales
+and appreciation of the website.
+A certain number of website visitors were asked to rate their appreciation of the website on a 5‑point
+Likert scale, ranging from 1 (terrible) to 5 (excellent).
+For these visitors it was also recorded whether they actually bought something on the website.
+The data are contained in the file online.txt.
+
+```{r}
+dex <- read.table("../Datasets/online.txt.", sep=",", header = TRUE)
+head(dex)
+```
+
+---
+
+### 1. What type of variables are involved?
+
+Appreciation is a ordinal categorical variable and buy is a binary categorical variable.
+
+---
+
+### 2. Consider a website visitor and suppose we have no information about how much this customer appreciates the website. Estimate the probability that this customer actually purchased something.
+
+\[
+\hat{p} = \frac{\text{number of visitors with buy = "yes"}}{\text{total number of visitors}}.
+\]
+
+---
+
+### 3. Estimate the probability of purchasing something separately for each appreciation level and show in a plot the estimated probabilities as a function of appreciation.
+
+```{r}
+tmp <- do.call(rbind, strsplit(dex$appreciation.buy, " "))
+
+dex$appreciation <- as.integer(tmp[, 1])
+dex$buy          <- tmp[, 2]
+
+str(dex)
+head(dex)
+
+tab <- table(dex$appreciation, dex$buy)
+prob_by_app <- prop.table(tab, margin = 1)
+prob_by_app
+
+p_yes <- prob_by_app[, "yes"]
+
+plot(
+  as.numeric(rownames(prob_by_app)), p_yes,
+  type = "b", pch = 16,
+  xlab = "Appreciation (1–5)",
+  ylab = "Estimated purchase probability",
+  ylim = c(0, 1)
+)
+
+
+```
+
+
+---
+
+### 4. Explain why it does not make sense to specify a linear model to describe the relationship between the two variables.
+
+It does not make sense because the **response is binary** (buy: yes/no), so a linear model would violate key assumptions and give invalid probabilities.
+
+- A linear regression can predict values **below 0 or above 1**, which are impossible as probabilities.
+- With a binary outcome the variance depends on the mean, so the errors are strongly **heteroskedastic**, contradicting the constant-variance assumption of linear regression. 
+- Logistic regression instead models the log‑odds, guaranteeing fitted values between 0 and 1 and using a distribution (Bernoulli/binomial) appropriate for yes/no data.
+
+---
+
+### 5. Estimate an appropriate logistic regression model.
+
+```{r}
+dex$buy <- factor(dex$buy, levels = c("no", "yes"))
+
+fit_logit <- glm(buy ~ appreciation,
+                 data   = dex,
+                 family = binomial)   
+
+summary(fit_logit)
+```
+
+---
+
+### 6. Is it true that the website appreciation variable has an effect on the probability of purchase? If so, what is this effect? How strong is the evidence supporting your statement?
+
+Yes, from the logistic regression `buy ~ appreciation`, if the coefficient of **appreciation** is positive and its p‑value is < 0.05, we conclude that higher appreciation increases the purchase probability.  
+The strength of the evidence is summarized by the p‑value (smaller means stronger evidence) and by the odds ratio \(e^{\hat\beta_1}\), which tells how many times the odds of purchase multiply for a one‑point increase in appreciation.
+

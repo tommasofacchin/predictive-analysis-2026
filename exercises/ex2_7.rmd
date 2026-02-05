@@ -1,0 +1,150 @@
+---
+title: "Block 2 ex 7"
+author: "Facchin Tommaso"
+output: 
+  html_document: 
+    toc: yes
+---
+
+The EdenRainfall dataset contains information on rainfall recorded in the Eden River basin, in northern England. The dataset includes the following variables:  
+
+- **month**: the month to which the observation refers  
+- **year**: the year to which the observation refers  
+- **ndays_prec**: the number of days in the month with precipitation greater than 1 mm  
+- **high_prec**: an indicator variable equal to 1 if an extreme precipitation event was recorded in the month  
+- **tot_prec**: total precipitation accumulated during the month  
+- **mean_prec**: average precipitation accumulated during the month  
+- **tdays**: total number of days with valid records for the reference month  
+- **nao**: value of the North Atlantic Oscillation (NAO) index for the month  
+- **soi**: value of the Southern Oscillation Index (SOI) for the month.
+
+```{r}
+dex <- read.table("../Datasets/EdenRainfall.txt", sep="\t", header = TRUE)
+head(dex)
+```
+
+---
+
+### Investigate whether the variables **nao** and **soi** influence the probability of observing at least one day with heavy precipitation (*high_precip*) and the proportion of rainy days in a month for the month of January. First, consider models where the predictors are used individually: create plots that show the estimated impact of each single predictor on the response variable. Then estimate a model in which both predictors are included simultaneously. Create plots that show the impact of each predictor, for different values of the other predictor (for example, at the 10th percentile, the median, and the 90th percentile) on the response variable.
+
+
+```{r}
+## Filtra il mese di gennaio
+jan <- subset(dex, month == 1)
+
+## 1) PROBABILITÀ DI ALMENO UN GIORNO CON PRECIPITAZIONE ELEVATA (high_prec)
+
+## (a) Modelli con un predittore alla volta
+
+# NAO da solo
+fit_nao_high <- glm(high_prec ~ nao, data = jan, family = binomial)
+
+# SOI da solo
+fit_soi_high <- glm(high_prec ~ soi, data = jan, family = binomial)
+
+# Sequenze di valori per i grafici
+nao_seq <- seq(min(jan$nao), max(jan$nao), length.out = 100)
+soi_seq <- seq(min(jan$soi), max(jan$soi), length.out = 100)
+
+# Probabilità stimate per NAO
+p_nao_high <- predict(fit_nao_high,
+                      newdata = data.frame(nao = nao_seq),
+                      type = "response")
+
+# Probabilità stimate per SOI
+p_soi_high <- predict(fit_soi_high,
+                      newdata = data.frame(soi = soi_seq),
+                      type = "response")
+
+# Grafico effetto NAO
+plot(nao_seq, p_nao_high, type = "l",
+     xlab = "NAO", ylab = "P(high_prec = 1)",
+     main = "Effect of NAO on high_prec (January)")
+
+# Grafico effetto SOI
+plot(soi_seq, p_soi_high, type = "l",
+     xlab = "SOI", ylab = "P(high_prec = 1)",
+     main = "Effect of SOI on high_prec (January)")
+
+
+## 2) PROPORZIONE DI GIORNI PIOVOSI NEL MESE
+
+# risposta binomiale: successi = ndays_prec, insuccessi = tdays - ndays_prec
+fit_nao_prop <- glm(cbind(ndays_prec, tdays - ndays_prec) ~ nao,
+                    data = jan, family = binomial)
+
+fit_soi_prop <- glm(cbind(ndays_prec, tdays - ndays_prec) ~ soi,
+                    data = jan, family = binomial)
+
+p_nao_prop <- predict(fit_nao_prop,
+                      newdata = data.frame(nao = nao_seq),
+                      type = "response")
+
+p_soi_prop <- predict(fit_soi_prop,
+                      newdata = data.frame(soi = soi_seq),
+                      type = "response")
+
+# Grafico effetto NAO sulla proporzione di giorni piovosi
+plot(nao_seq, p_nao_prop, type = "l",
+     xlab = "NAO", ylab = "Proportion of rainy days",
+     main = "Effect of NAO on rainy-day proportion (January)",
+     ylim = c(0, 1))
+
+# Grafico effetto SOI sulla proporzione di giorni piovosi
+plot(soi_seq, p_soi_prop, type = "l",
+     xlab = "SOI", ylab = "Proportion of rainy days",
+     main = "Effect of SOI on rainy-day proportion (January)",
+     ylim = c(0, 1))
+
+
+## 3) MODELLI CON ENTRAMBI I PREDITTORI
+
+# high_prec
+fit_both_high <- glm(high_prec ~ nao + soi,
+                     data = jan, family = binomial)
+
+# proporzione giorni piovosi
+fit_both_prop <- glm(cbind(ndays_prec, tdays - ndays_prec) ~ nao + soi,
+                     data = jan, family = binomial)
+
+
+## 4) EFFETTI CON L’ALTRO PREDITTore FISSATO A 10°, MEDIANA, 90°
+
+# Quantili di SOI
+q_soi <- quantile(jan$soi, probs = c(0.10, 0.50, 0.90), na.rm = TRUE)
+# Quantili di NAO
+q_nao <- quantile(jan$nao, probs = c(0.10, 0.50, 0.90), na.rm = TRUE)
+
+## (a) Effetto di NAO per tre valori di SOI – high_prec
+
+p_nao_soi <- sapply(q_soi, function(s) {
+  predict(fit_both_high,
+          newdata = data.frame(nao = nao_seq, soi = s),
+          type = "response")
+})
+
+matplot(nao_seq, p_nao_soi, type = "l", lty = 1,
+        xlab = "NAO", ylab = "P(high_prec = 1)",
+        main = "Effect of NAO on high_prec for different SOI values")
+legend("topleft",
+       legend = paste(c("10th", "50th", "90th"), "percentile SOI"),
+       col = 1:3, lty = 1)
+
+## (b) Effetto di SOI per tre valori di NAO – high_prec
+
+p_soi_nao <- sapply(q_nao, function(n) {
+  predict(fit_both_high,
+          newdata = data.frame(nao = n, soi = soi_seq),
+          type = "response")
+})
+
+matplot(soi_seq, p_soi_nao, type = "l", lty = 1,
+        xlab = "SOI", ylab = "P(high_prec = 1)",
+        main = "Effect of SOI on high_prec for different NAO values")
+legend("topleft",
+       legend = paste(c("10th", "50th", "90th"), "percentile NAO"),
+       col = 1:3, lty = 1)
+
+```
+
+
